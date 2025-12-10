@@ -2,27 +2,40 @@ using System;
 using System.Globalization;
 using System.Windows.Data;
 
-namespace SystemProcesses.Desktop.Converters
+namespace SystemProcesses.Desktop.Converters;
+
+[ValueConversion(typeof(long), typeof(string))]
+public class BytesToAutoFormatConverter : IValueConverter
 {
-    public class BytesToAutoFormatConverter : IValueConverter
+    private const long KB = 1024;
+    private const long MB = KB * 1024;
+    private const long GB = MB * 1024;
+    private const long TB = GB * 1024;
+
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        if (value is long bytes)
         {
-            if (value is long bytes)
-            {
-                if (bytes >= 1_073_741_824)
-                    return $"{bytes / 1_073_741_824.0:F2} GB";
-                if (bytes >= 1_048_576)
-                    return $"{bytes / 1_048_576.0:F2} MB";
-                return $"{bytes / 1024.0:F2} KB";
-            }
+            if (bytes >= TB)
+                return string.Format(culture, "{0:F2} TB", bytes / (double)TB);
 
-            return "0 KB";
+            if (bytes >= GB)
+                return string.Format(culture, "{0:F2} GB", bytes / (double)GB);
+
+            if (bytes >= MB)
+                return string.Format(culture, "{0:F2} MB", bytes / (double)MB);
+
+            if (bytes >= KB)
+                return string.Format(culture, "{0:F2} KB", bytes / (double)KB);
+
+            return string.Format(culture, "{0} B", bytes);
         }
 
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+        return "0 B";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
     }
 }

@@ -1,11 +1,15 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+
 using SystemProcesses.Desktop.Models;
 
-namespace SystemProcesses.Desktop.Services
+namespace SystemProcesses.Desktop.Services;
+
+public interface IProcessService
 {
-    public interface IProcessService
-    {
-        Task<List<ProcessInfo>> GetProcessTreeAsync();
-    }
+    /// <summary>
+    /// Returns the root nodes of the process tree.
+    /// Subsequent calls return the SAME ProcessInfo instances with updated properties.
+    /// </summary>
+    Task<List<ProcessInfo>> GetProcessTreeAsync();
 }

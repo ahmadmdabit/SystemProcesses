@@ -30,7 +30,7 @@ SystemProcesses.Desktop/
 ├── Converters/
 │   ├── BytesToAutoFormatConverter.cs [KB/MB/GB formatting]
 │   ├── CpuPercentageConverter.cs     [CPU % formatting]
-│   └── BoolToColorConverter.cs       [Service process coloring]
+│   └── BoolToBrushConverter.cs       [Service process coloring]
 │
 └── Resources/
     └── Styles.xaml                   [WPF styles and resources]

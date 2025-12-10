@@ -76,7 +76,7 @@ This document verifies that all requirements have been implemented correctly.
 ### 6. Service Process Coloring
 - [x] Service processes displayed in grey
   - Detection: `ServiceController.GetServices()`
-  - Converter: `BoolToColorConverter` (Grey for services, Black otherwise)
+  - Converter: `BoolToBrushConverter` (Grey for services, Black otherwise)
 
 ## Action Toolbar Buttons ✓
 

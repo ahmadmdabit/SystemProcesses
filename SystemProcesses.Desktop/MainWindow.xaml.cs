@@ -2,30 +2,29 @@ using System.Windows;
 using System.Windows.Controls;
 using SystemProcesses.Desktop.ViewModels;
 
-namespace SystemProcesses.Desktop
+namespace SystemProcesses.Desktop;
+
+public partial class MainWindow : Window
 {
-    public partial class MainWindow : Window
+    public MainWindow()
     {
-        public MainWindow()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
+    }
 
-        private void TreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    private void TreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    {
+        if (DataContext is MainViewModel viewModel && e.NewValue is ProcessItemViewModel selectedProcess)
         {
-            if (DataContext is MainViewModel viewModel && e.NewValue is ProcessItemViewModel selectedProcess)
-            {
-                viewModel.SelectedProcess = selectedProcess;
-            }
+            viewModel.SelectedProcess = selectedProcess;
         }
+    }
 
-        protected override void OnClosed(System.EventArgs e)
+    protected override void OnClosed(System.EventArgs e)
+    {
+        if (DataContext is MainViewModel viewModel)
         {
-            if (DataContext is MainViewModel viewModel)
-            {
-                viewModel.Dispose();
-            }
-            base.OnClosed(e);
+            viewModel.Dispose();
         }
+        base.OnClosed(e);
     }
 }

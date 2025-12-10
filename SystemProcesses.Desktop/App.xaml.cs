@@ -1,8 +1,7 @@
 using System.Windows;
 
-namespace SystemProcesses.Desktop
+namespace SystemProcesses.Desktop;
+
+public partial class App : Application
 {
-    public partial class App : Application
-    {
-    }
 }

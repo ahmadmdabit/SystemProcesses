@@ -47,7 +47,7 @@ SystemProcesses.Desktop/
 ├── Converters/
 │   ├── BytesToAutoFormatConverter.cs    # Memory formatting
 │   ├── CpuPercentageConverter.cs        # CPU formatting
-│   └── BoolToColorConverter.cs          # Service color converter
+│   └── BoolToBrushConverter.cs          # Service color converter
 └── Resources/
     └── Styles.xaml                      # UI styles and resources
 ```
