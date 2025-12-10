@@ -142,15 +142,22 @@ namespace SystemProcesses.Desktop.ViewModels
             {
                 Interval = TimeSpan.FromMilliseconds(_refreshInterval)
             };
-            _refreshTimer.Tick += async (s, e) => await RefreshProcessesAsync();
+            _refreshTimer.Tick += async (s, e) =>
+            {
+                _refreshTimer.Stop();
+                await RefreshProcessesAsync();
+            };
             _refreshTimer.Start();
 
             // Initial load
             Task.Run(async () => await RefreshProcessesAsync());
         }
 
+        private bool isRefreshingProcesses;
         private async Task RefreshProcessesAsync()
         {
+            if (isRefreshingProcesses) return;
+            isRefreshingProcesses = true;
             try
             {
                 _allProcesses = await _processService.GetProcessTreeAsync();
@@ -160,6 +167,14 @@ namespace SystemProcesses.Desktop.ViewModels
             {
                 MessageBox.Show($"Error refreshing processes: {ex.Message}", "Error",
                     MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                if (!IsPaused)
+                {
+                    _refreshTimer.Start();
+                }
+                isRefreshingProcesses = false;
             }
         }
 

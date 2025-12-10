@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.Linq;
 using System.Management;
 using System.ServiceProcess;
@@ -47,8 +48,12 @@ namespace SystemProcesses.Desktop.Services
         {
             return await Task.Run(() =>
             {
+                var sw = Stopwatch.StartNew();
+
                 var processInfos = new Dictionary<int, ProcessInfo>();
-                var parentChildMap = GetParentChildMap();
+
+                // Batch load all WMI data upfront (MUCH faster than per-process queries)
+                var wmiData = GetAllProcessWmiData();
 
                 // Get all processes
                 var processes = Process.GetProcesses();
@@ -57,41 +62,26 @@ namespace SystemProcesses.Desktop.Services
                 {
                     try
                     {
+                        var pid = process.Id;
+
                         var info = new ProcessInfo
                         {
-                            Pid = process.Id,
+                            Pid = pid,
                             Name = process.ProcessName,
                             MemoryBytes = process.WorkingSet64,
                             VirtualMemoryBytes = process.VirtualMemorySize64,
-                            ParentPid = parentChildMap.ContainsKey(process.Id) ? parentChildMap[process.Id] : 0,
+                            ParentPid = wmiData.TryGetValue(pid, out var wmi) ? wmi.ParentPid : 0,
+                            Parameters = wmiData.TryGetValue(pid, out var wmi2) ? wmi2.CommandLine : string.Empty,
                             IsService = IsServiceProcess(process.ProcessName)
                         };
 
-                        // Get command line parameters
-                        try
-                        {
-                            info.Parameters = GetCommandLine(process.Id);
-                        }
-                        catch
-                        {
-                            info.Parameters = string.Empty;
-                        }
-
-                        // Get CPU percentage (simplified - would need timing for accurate measurement)
-                        // Note: Many system processes throw Access Denied - this is expected behavior
+                        // Get CPU percentage
                         info.CpuPercentage = GetCpuPercentage(process);
 
-                        // Get icon
-                        try
-                        {
-                            info.Icon = GetProcessIcon(process);
-                        }
-                        catch
-                        {
-                            info.Icon = null;
-                        }
+                        // Get icon (must freeze for cross-thread usage)
+                        info.Icon = GetProcessIcon(process);
 
-                        processInfos[process.Id] = info;
+                        processInfos[pid] = info;
                     }
                     catch
                     {
@@ -103,6 +93,8 @@ namespace SystemProcesses.Desktop.Services
                     }
                 }
 
+                Debug.WriteLine($"ProcessService: Loaded {processInfos.Count} processes in {sw.Elapsed}.");
+
                 // Build the tree structure
                 var rootProcesses = new List<ProcessInfo>();
 
@@ -112,21 +104,60 @@ namespace SystemProcesses.Desktop.Services
 
                     if (processInfo.ParentPid != 0 && processInfos.ContainsKey(processInfo.ParentPid))
                     {
-                        // Add to parent's children
                         processInfos[processInfo.ParentPid].Children.Add(processInfo);
                     }
                     else
                     {
-                        // Root process (no parent or parent not found)
                         rootProcesses.Add(processInfo);
                     }
                 }
 
+                Debug.WriteLine($"ProcessService: Built process tree in {sw.Elapsed}.");
+
                 // Sort all levels alphabetically by name
                 SortProcessTreeByName(rootProcesses);
 
+                Debug.WriteLine($"ProcessService: Sorted process tree in {sw.Elapsed}. Root processes count: {rootProcesses.Count}.");
+
                 return rootProcesses;
             });
+        }
+
+        private record WmiProcessData(int ParentPid, string CommandLine);
+
+        private Dictionary<int, WmiProcessData> GetAllProcessWmiData()
+        {
+            var result = new Dictionary<int, WmiProcessData>();
+
+            try
+            {
+                // Single WMI query for ALL processes - much faster than per-process queries
+                using var searcher = new ManagementObjectSearcher(
+                    "SELECT ProcessId, ParentProcessId, CommandLine FROM Win32_Process");
+                using var results = searcher.Get();
+
+                foreach (ManagementObject mo in results)
+                {
+                    try
+                    {
+                        var processId = Convert.ToInt32(mo["ProcessId"]);
+                        var parentProcessId = Convert.ToInt32(mo["ParentProcessId"]);
+                        var commandLine = mo["CommandLine"]?.ToString() ?? string.Empty;
+
+                        result[processId] = new WmiProcessData(parentProcessId, commandLine);
+                    }
+                    catch
+                    {
+                        // Skip invalid entries
+                    }
+                }
+            }
+            catch
+            {
+                // If WMI fails, return empty dictionary
+            }
+
+            return result;
         }
 
         private void SortProcessTreeByName(List<ProcessInfo> processes)
@@ -140,60 +171,6 @@ namespace SystemProcesses.Desktop.Services
                     SortProcessTreeByName(process.Children);
                 }
             }
-        }
-
-        private Dictionary<int, int> GetParentChildMap()
-        {
-            var map = new Dictionary<int, int>();
-
-            try
-            {
-                using var searcher = new ManagementObjectSearcher(
-                    "SELECT ProcessId, ParentProcessId FROM Win32_Process");
-                using var results = searcher.Get();
-
-                foreach (ManagementObject mo in results)
-                {
-                    try
-                    {
-                        var processId = Convert.ToInt32(mo["ProcessId"]);
-                        var parentProcessId = Convert.ToInt32(mo["ParentProcessId"]);
-                        map[processId] = parentProcessId;
-                    }
-                    catch
-                    {
-                        // Skip invalid entries
-                    }
-                }
-            }
-            catch
-            {
-                // If WMI fails, return empty map
-            }
-
-            return map;
-        }
-
-        private string GetCommandLine(int processId)
-        {
-            try
-            {
-                using var searcher = new ManagementObjectSearcher(
-                    $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {processId}");
-                using var results = searcher.Get();
-
-                foreach (ManagementObject mo in results)
-                {
-                    var commandLine = mo["CommandLine"]?.ToString() ?? string.Empty;
-                    return commandLine;
-                }
-            }
-            catch
-            {
-                // Access denied or other error
-            }
-
-            return string.Empty;
         }
 
         private bool IsServiceProcess(string processName)
@@ -212,14 +189,19 @@ namespace SystemProcesses.Desktop.Services
                 if (string.IsNullOrEmpty(fileName))
                     return null;
 
-                var icon = System.Drawing.Icon.ExtractAssociatedIcon(fileName);
+                using var icon = Icon.ExtractAssociatedIcon(fileName);
                 if (icon == null)
                     return null;
 
-                return Imaging.CreateBitmapSourceFromHIcon(
+                var imageSource = Imaging.CreateBitmapSourceFromHIcon(
                     icon.Handle,
                     Int32Rect.Empty,
                     BitmapSizeOptions.FromEmptyOptions());
+
+                // CRITICAL: Freeze to allow cross-thread access
+                imageSource.Freeze();
+
+                return imageSource;
             }
             catch
             {
