@@ -25,18 +25,31 @@
 
         <!--  Toolbar  -->
         <ToolBar Grid.Row="0" Padding="5">
+            <!--  New Feature: Graceful End  -->
+            <Button
+                Command="{Binding GracefulEndProcessCommand}"
+                Content="Graceful End"
+                Style="{StaticResource ToolbarButtonStyle}"
+                ToolTip="Requests the process to close (like clicking X)" />
+            <Button
+                Command="{Binding GracefulEndProcessTreeCommand}"
+                Content="Graceful End Tree"
+                Style="{StaticResource ToolbarButtonStyle}"
+                ToolTip="Requests the process tree to close (like clicking X)" />
             <Button
                 Command="{Binding EndProcessCommand}"
-                Content="End Process"
-                Style="{StaticResource ToolbarButtonStyle}" />
+                Content="End"
+                Style="{StaticResource ToolbarButtonStyle}"
+                ToolTip="Forcefully stops the process" />
             <Button
                 Command="{Binding EndProcessTreeCommand}"
-                Content="End Process Tree"
-                Style="{StaticResource ToolbarButtonStyle}" />
+                Content="End Tree"
+                Style="{StaticResource ToolbarButtonStyle}"
+                ToolTip="Forcefully stops the process tree" />
             <Separator />
             <Button
                 Command="{Binding ShowProcessDetailsCommand}"
-                Content="Show Details"
+                Content="Details"
                 Style="{StaticResource ToolbarButtonStyle}" />
             <Button
                 Command="{Binding OpenProcessDirectoryCommand}"
@@ -96,7 +109,9 @@
             BorderBrush="LightGray"
             BorderThickness="1"
             ItemsSource="{Binding Processes}"
-            SelectedItemChanged="TreeView_SelectedItemChanged">
+            SelectedItemChanged="TreeView_SelectedItemChanged"
+            VirtualizingStackPanel.IsVirtualizing="True"
+            VirtualizingStackPanel.VirtualizationMode="Recycling">
 
             <TreeView.ItemContainerStyle>
                 <Style BasedOn="{StaticResource TreeViewItemStyle}" TargetType="TreeViewItem">

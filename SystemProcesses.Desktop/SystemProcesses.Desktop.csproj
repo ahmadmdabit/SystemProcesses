@@ -10,6 +10,7 @@
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<Platforms>AnyCPU;x64;x86</Platforms>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<PackageIcon>SystemProcess.png</PackageIcon>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -21,6 +22,13 @@
 		<PackageReference Include="System.Drawing.Common" Version="10.0.1" />
 		<PackageReference Include="System.Management" Version="9.0.0" />
 		<PackageReference Include="System.ServiceProcess.ServiceController" Version="9.0.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Update="Resources\SystemProcess.png">
+	    <Pack>True</Pack>
+	    <PackagePath>\</PackagePath>
+	  </None>
 	</ItemGroup>
 
 </Project>

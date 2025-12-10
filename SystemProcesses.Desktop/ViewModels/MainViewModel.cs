@@ -76,6 +76,8 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
             {
                 _selectedProcess = value;
                 OnPropertyChanged();
+                ((RelayCommand)GracefulEndProcessCommand).RaiseCanExecuteChanged();
+                ((RelayCommand)GracefulEndProcessTreeCommand).RaiseCanExecuteChanged();
                 ((RelayCommand)EndProcessCommand).RaiseCanExecuteChanged();
                 ((RelayCommand)EndProcessTreeCommand).RaiseCanExecuteChanged();
                 ((RelayCommand)ShowProcessDetailsCommand).RaiseCanExecuteChanged();
@@ -120,6 +122,8 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
     }
 
     public ICommand RefreshCommand { get; }
+    public ICommand GracefulEndProcessCommand { get; }
+    public ICommand GracefulEndProcessTreeCommand { get; }
     public ICommand EndProcessCommand { get; }
     public ICommand EndProcessTreeCommand { get; }
     public ICommand ShowProcessDetailsCommand { get; }
@@ -134,6 +138,11 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         RefreshIntervals = new ObservableCollection<string> { "1", "2", "5", "10" };
 
         RefreshCommand = new RelayCommand(async _ => await RefreshProcessesAsync());
+
+        // Async Command Wrapper
+        GracefulEndProcessCommand = new RelayCommand(async _ => await GracefulEndProcessAsync(), _ => SelectedProcess != null);
+        GracefulEndProcessTreeCommand = new RelayCommand(async _ => await GracefulEndProcessTreeAsync(), _ => SelectedProcess != null);
+
         EndProcessCommand = new RelayCommand(EndProcess, _ => SelectedProcess != null);
         EndProcessTreeCommand = new RelayCommand(EndProcessTree, _ => SelectedProcess != null);
         ShowProcessDetailsCommand = new RelayCommand(ShowProcessDetails, _ => SelectedProcess != null);
@@ -251,10 +260,8 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
                     ParentPid = node.ParentPid,
                     Icon = node.Icon
                 };
-
                 // ProcessInfo.Children is a get-only List, so we use AddRange
                 clone.Children.AddRange(filteredChildren);
-
                 result.Add(clone);
             }
         }
@@ -313,6 +320,7 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         return _viewModelCache.TryGetValue(pid, out var vm) ? vm!.ProcessInfo : null;
     }
+
     private void SyncProcessCollection(ObservableCollection<ProcessItemViewModel> collection, List<ProcessInfo> sourceInfos)
     {
         var sourcePids = new HashSet<int>(sourceInfos.Select(x => x.Pid));
@@ -359,6 +367,196 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    private async Task GracefulEndProcessAsync()
+    {
+        var selected = SelectedProcess;
+        if (selected == null) return;
+
+        // Capture state to prevent race conditions
+        int pid = selected.Pid;
+        string name = selected.Name;
+
+        if (MessageBox.Show($"Send close request to '{name}' (PID: {pid})?",
+            "Graceful End", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+
+            // PID Reuse Check: Verify StartTime if possible (requires capturing it earlier, 
+            // but here we assume short duration between selection and action).
+            // Ideally, ProcessInfo should carry StartTime.
+
+            process.Refresh();
+
+            if (process.CloseMainWindow())
+            {
+                // Wait for exit asynchronously
+                bool exited = await Task.Run(() => process.WaitForExit(3000));
+
+                if (exited)
+                {
+                    MessageBox.Show("Process closed successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    if (MessageBox.Show($"Process '{name}' did not close within 3 seconds.\nForce kill it?",
+                        "Process Unresponsive", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+                    {
+                        process.Kill();
+                        MessageBox.Show("Process terminated.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                }
+            }
+            else
+            {
+                if (MessageBox.Show($"Could not send close request (No Window or Unresponsive).\nForce kill '{name}'?",
+                    "No Window Found", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+                {
+                    process.Kill();
+                    MessageBox.Show("Process terminated.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+        }
+        catch (ArgumentException)
+        {
+            MessageBox.Show($"Process '{name}' (PID: {pid}) is no longer running.", "Process Not Found", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Win32Exception ex)
+        {
+            MessageBox.Show($"Access Denied: {ex.Message}\nTry running as Administrator.", "Permission Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async Task GracefulEndProcessTreeAsync()
+    {
+        var selected = SelectedProcess;
+        if (selected == null) return;
+
+        int rootPid = selected.Pid;
+        string rootName = selected.Name;
+
+        if (MessageBox.Show($"Send close request to '{rootName}' (PID: {rootPid}) and all children?",
+            "Graceful End Tree", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        // 1. Collect all PIDs in the tree (Bottom-Up approach preferred for closing)
+        var pidsToClose = new List<int>();
+        void CollectPids(ProcessItemViewModel vm)
+        {
+            foreach (var child in vm.Children) CollectPids(child);
+            pidsToClose.Add(vm.Pid);
+        }
+
+        // Use cache to find the current tree structure
+        if (_viewModelCache.TryGetValue(rootPid, out var rootVm))
+        {
+            CollectPids(rootVm);
+        }
+        else
+        {
+            pidsToClose.Add(rootPid);
+        }
+
+        // 2. Send Close Requests asynchronously
+        await Task.Run(() =>
+        {
+            foreach (var pid in pidsToClose)
+            {
+                try
+                {
+                    using var p = Process.GetProcessById(pid);
+                    p.Refresh();
+                    p.CloseMainWindow();
+                }
+                catch { /* Ignore access denied or already exited */ }
+            }
+        });
+
+        var remaining = new HashSet<int>(pidsToClose);
+        var remainingTries = 3;
+        var delay = 1000;
+        var tryNumber = 0;
+        while (true)
+        {
+            ++tryNumber;
+
+            // 3. Verify
+            var closedPids = new HashSet<int>();
+            foreach (var pid in remaining)
+            {
+                try
+                {
+                    using var p = Process.GetProcessById(pid);
+                    if (p == null)
+                    {
+                        closedPids.Add(pid);
+                    }
+                    else
+                    {
+                        p.Refresh();
+                        if (p.HasExited)
+                        {
+                            closedPids.Add(pid);
+                        }
+                    }
+                }
+                catch { /* Assume exited if cannot access */ }
+            }
+
+            foreach (var pid in closedPids)
+            {
+                remaining.Remove(pid);
+            }
+
+            if (remaining.Count == 0)
+            {
+                break;
+            }
+            else
+            {
+                if (--remainingTries == 0)
+                    break;
+
+                remaining.Clear();
+            }
+
+            // 4. Wait for processes to exit
+            await Task.Delay(delay * tryNumber);
+        }
+
+
+        if (remaining.Count > 0)
+        {
+            if (MessageBox.Show($"{remaining.Count} processes in the tree are still running.\nForce kill the entire tree?",
+                "Incomplete Shutdown", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+            {
+                try
+                {
+                    StopProcessAndChildren(rootPid);
+                    MessageBox.Show("Tree force terminated.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error terminating tree: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+        else
+        {
+            MessageBox.Show("All processes in tree closed successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
     private void EndProcess(object? parameter)
     {
         if (SelectedProcess == null)
@@ -374,7 +572,13 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             try
             {
-                var process = Process.GetProcessById(SelectedProcess.Pid);
+                using var process = Process.GetProcessById(SelectedProcess.Pid);
+
+                // PID Reuse Check: Verify StartTime if possible (requires capturing it earlier, 
+                // but here we assume short duration between selection and action).
+                // Ideally, ProcessInfo should carry StartTime.
+
+                process.Refresh();
                 process.Kill();
                 MessageBox.Show("Process terminated successfully.", "Success",
                     MessageBoxButton.OK, MessageBoxImage.Information);
@@ -429,7 +633,13 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         // Then kill the process itself
         try
         {
-            var process = Process.GetProcessById(pid);
+            using var process = Process.GetProcessById(pid);
+
+            // PID Reuse Check: Verify StartTime if possible (requires capturing it earlier, 
+            // but here we assume short duration between selection and action).
+            // Ideally, ProcessInfo should carry StartTime.
+
+            process.Refresh();
             process.Kill();
         }
         catch
