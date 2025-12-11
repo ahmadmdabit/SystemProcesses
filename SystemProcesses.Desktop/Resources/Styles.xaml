@@ -10,6 +10,7 @@
         x:Key="ServiceColorConverter"
         FalseBrush="Black"
         TrueBrush="Gray" />
+    <converters:IndentationWidthConverter x:Key="IndentationWidthConverter" />
 
     <!--  TreeView Style  -->
     <Style x:Key="TreeViewItemStyle" TargetType="TreeViewItem">

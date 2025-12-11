@@ -1,11 +1,25 @@
 using System.Collections.Generic;
-using System.Windows.Media;
 
 namespace SystemProcesses.Desktop.Models;
 
 public class ProcessInfo
 {
-    public int Pid { get; set; }
+    private int pid;
+
+    public int Pid
+    {
+        get => pid;
+        set
+        {
+            pid = value;
+            PidText = pid.ToString();
+        }
+    }
+
+    // Used for display purposes to avoid boxing in UI lists
+    // Also for filtering as string
+    public string PidText { get; private set; } = null!;
+
     public string Name { get; set; } = string.Empty;
     public double CpuPercentage { get; set; }
     public long MemoryBytes { get; set; }
@@ -13,7 +27,7 @@ public class ProcessInfo
     public string Parameters { get; set; } = string.Empty;
     public bool IsService { get; set; }
     public int ParentPid { get; set; }
-    public ImageSource? Icon { get; set; }
+    public string? ProcessPath { get; set; }
     public int ThreadCount { get; set; }
     public int HandleCount { get; set; }
 
@@ -43,15 +57,24 @@ public struct SystemStats
 
     // Working Set (Physical used by processes)
     public long TotalMemory;
+
     // Installed RAM
     public long TotalPhysicalMemory;
+
     // Free RAM
     public long AvailablePhysicalMemory;
+
     // RAM + PageFile
     public long TotalCommitLimit;
+
     // Free Commit
     public long AvailableCommitLimit;
+
     // System-wide IO Throughput
     public long TotalIoBytesPerSec;
+
     public double DiskActivePercent;
+
+    // Fixed-size array for Top 5 to avoid List allocations
+    public ProcessInfo?[] Top5Processes;
 }

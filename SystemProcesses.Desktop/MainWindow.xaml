@@ -4,17 +4,22 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:tb="clr-namespace:H.NotifyIcon;assembly=H.NotifyIcon.Wpf"
     xmlns:viewmodels="clr-namespace:SystemProcesses.Desktop.ViewModels"
+    x:Name="uiRoot"
     Title="System Processes"
-    Width="1400"
-    Height="700"
+    Width="960"
+    Height="500"
     Icon="/Resources/SystemProcess.png"
+    StateChanged="uiRootStateChanged"
     WindowStartupLocation="CenterScreen"
     mc:Ignorable="d">
 
     <Window.DataContext>
         <viewmodels:MainViewModel />
     </Window.DataContext>
+
+    <Window.Resources />
 
     <Grid>
         <Grid.RowDefinitions>
@@ -23,6 +28,52 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
+
+        <!--  Note: IconSource points to the .ico file in Resources  -->
+        <tb:TaskbarIcon
+            DoubleClickCommand="{Binding ShowApplicationCommand}"
+            IconSource="/Resources/SystemProcess.ico"
+            MenuActivation="RightClick"
+            ToolTipText="System Processes">
+            <tb:TaskbarIcon.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Command="{Binding ShowApplicationCommand}" Header="Show" />
+                    <Separator />
+                    <MenuItem Command="{Binding ExitApplicationCommand}" Header="Exit" />
+                </ContextMenu>
+            </tb:TaskbarIcon.ContextMenu>
+
+            <tb:TaskbarIcon.TrayPopup>
+                <Border
+                    Width="220"
+                    Margin="0,0,0,47"
+                    Padding="10"
+                    Background="Black"
+                    BorderBrush="#00EE00"
+                    BorderThickness="2"
+                    CornerRadius="10">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock
+                            Grid.Row="0"
+                            Margin="0,0,0,5"
+                            FontWeight="Bold"
+                            Foreground="#00EE00"
+                            Text="{Binding TrayToolTipTextHeader}"
+                            TextWrapping="Wrap" />
+                        <TextBlock
+                            Grid.Row="1"
+                            Margin="0,0,0,0"
+                            Foreground="#00EE00"
+                            Text="{Binding TrayToolTipTextBody}"
+                            TextWrapping="Wrap" />
+                    </Grid>
+                </Border>
+            </tb:TaskbarIcon.TrayPopup>
+        </tb:TaskbarIcon>
 
         <!--  Toolbar  -->
         <ToolBar
@@ -135,12 +186,15 @@
 
         <!--  Process Tree  -->
         <TreeView
+            x:Name="uiProcessTreeView"
             Grid.Row="2"
             Margin="10,0,10,5"
             BorderBrush="Transparent"
             BorderThickness="1"
+            Grid.IsSharedSizeScope="True"
             ItemsSource="{Binding Processes}"
             SelectedItemChanged="TreeViewSelectedItemChanged"
+            SizeChanged="uiProcessTreeViewSizeChanged"
             VirtualizingStackPanel.IsVirtualizing="True"
             VirtualizingStackPanel.VirtualizationMode="Recycling">
 
@@ -159,12 +213,13 @@
                                 <MenuItem Command="{Binding PlacementTarget.Tag.GracefulEndProcessTreeCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="Graceful End Tree" />
                                 <MenuItem Command="{Binding PlacementTarget.Tag.EndProcessCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="End" />
                                 <MenuItem Command="{Binding PlacementTarget.Tag.EndProcessTreeCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="End Tree" />
-                                <MenuItem Command="{Binding PlacementTarget.Tag.ShowProcessDetailsCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="Details" />
-                                <MenuItem Command="{Binding PlacementTarget.Tag.OpenProcessDirectoryCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="Open Directory" />
                                 <MenuItem
                                     Header="Isolate Tree"
                                     IsCheckable="True"
                                     IsChecked="{Binding PlacementTarget.Tag.IsTreeIsolated, RelativeSource={RelativeSource AncestorType=ContextMenu}, Mode=TwoWay}" />
+                                <MenuItem Command="{Binding PlacementTarget.Tag.ShowProcessDetailsCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="Details" />
+                                <MenuItem Command="{Binding PlacementTarget.Tag.CopyProcessPathCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="Copy Path" />
+                                <MenuItem Command="{Binding PlacementTarget.Tag.OpenProcessDirectoryCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="Open Directory" />
                             </ContextMenu>
                         </Setter.Value>
                     </Setter>
@@ -177,16 +232,25 @@
             <TreeView.Resources>
                 <HierarchicalDataTemplate DataType="{x:Type viewmodels:ProcessItemViewModel}" ItemsSource="{Binding Children}">
                     <Border
-                        Width="{Binding RelativeSource={RelativeSource AncestorType=TreeView}, Path=ActualWidth}"
+                        MinWidth="900"
                         HorizontalAlignment="Stretch"
                         Background="Transparent">
+                        <Border.Width>
+                            <MultiBinding Converter="{StaticResource IndentationWidthConverter}" ConverterParameter="21">
+                                <!--  Bind to the Window's calculated Row Width  -->
+                                <Binding ElementName="uiRoot" Path="TreeViewRowWidth" />
+                                <!--  Bind to the Item's Depth  -->
+                                <Binding Path="Depth" />
+                            </MultiBinding>
+                        </Border.Width>
+
                         <Grid HorizontalAlignment="Stretch">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="80" />
-                                <ColumnDefinition Width="250" />
-                                <ColumnDefinition Width="100" />
-                                <ColumnDefinition Width="120" />
-                                <ColumnDefinition Width="120" />
+                                <ColumnDefinition Width="80" SharedSizeGroup="PidColumn" />
+                                <ColumnDefinition Width="260" SharedSizeGroup="NameColumn" />
+                                <ColumnDefinition Width="80" SharedSizeGroup="CpuColumn" />
+                                <ColumnDefinition Width="80" SharedSizeGroup="MemColumn" />
+                                <ColumnDefinition Width="80" SharedSizeGroup="VmColumn" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
@@ -195,7 +259,7 @@
                                 Grid.Column="0"
                                 Margin="5,2"
                                 VerticalAlignment="Center"
-                                Text="{Binding Pid}" />
+                                Text="{Binding PidText}" />
 
                             <!--  Name with Icon  -->
                             <StackPanel
@@ -209,20 +273,10 @@
                                     Margin="0,0,5,0"
                                     RenderOptions.BitmapScalingMode="HighQuality"
                                     Source="{Binding Icon}" />
-                                <TextBlock VerticalAlignment="Center" Text="{Binding Name}">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <!--  Default: Standard Text Color (Black in Light, White in Dark)  -->
-                                            <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsService}" Value="True">
-                                                    <!--  Service: Dimmed/Gray Text Color (Adapts to theme)  -->
-                                                    <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    Foreground="{Binding IsService, Converter={StaticResource ServiceColorConverter}}"
+                                    Text="{Binding Name}" />
                             </StackPanel>
 
                             <!--  CPU  -->

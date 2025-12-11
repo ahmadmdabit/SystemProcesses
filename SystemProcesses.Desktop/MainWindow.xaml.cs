@@ -1,11 +1,17 @@
 using System.Windows;
 using System.Windows.Controls;
+
 using SystemProcesses.Desktop.ViewModels;
 
 namespace SystemProcesses.Desktop;
 
 public partial class MainWindow : Window
 {
+    public double TreeViewRowWidth { get => (double)GetValue(TreeViewRowWidthProperty); set => SetValue(TreeViewRowWidthProperty, value); }
+
+    public static readonly DependencyProperty TreeViewRowWidthProperty =
+        DependencyProperty.Register(nameof(TreeViewRowWidth), typeof(double), typeof(MainWindow), new PropertyMetadata(0.0));
+
     public MainWindow()
     {
         InitializeComponent();
@@ -36,5 +42,15 @@ public partial class MainWindow : Window
             viewModel.Dispose();
         }
         base.OnClosed(e);
+    }
+
+    private void uiProcessTreeViewSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        TreeViewRowWidth = uiProcessTreeView.ActualWidth - 30; // Adjust for padding and scrollbar
+    }
+
+    private void uiRootStateChanged(object sender, System.EventArgs e)
+    {
+        ShowInTaskbar = WindowState != WindowState.Minimized;
     }
 }

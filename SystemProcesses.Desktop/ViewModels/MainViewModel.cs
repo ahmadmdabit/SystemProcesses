@@ -14,6 +14,7 @@ using CommunityToolkit.Mvvm.Input;
 
 using SystemProcesses.Desktop.Models;
 using SystemProcesses.Desktop.Services;
+using SystemProcesses.Desktop.Utils;
 
 namespace SystemProcesses.Desktop.ViewModels;
 
@@ -91,6 +92,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private long _availableCommitLimit;
     [ObservableProperty] private long _totalIoBytesPerSec;
     [ObservableProperty] private double _diskActivePercent;
+
+    [ObservableProperty]
+    private string _trayToolTipTextHeader = "System Processes\nInitializing...";
+
+    [ObservableProperty]
+    private string _trayToolTipTextBody = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PauseResumeText))]
@@ -196,8 +203,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     AvailablePhysicalMemory = stats.AvailablePhysicalMemory;
                     TotalCommitLimit = stats.TotalCommitLimit;
                     AvailableCommitLimit = stats.AvailableCommitLimit;
-                    TotalIoBytesPerSec = stats.TotalIoBytesPerSec; 
+                    TotalIoBytesPerSec = stats.TotalIoBytesPerSec;
                     DiskActivePercent = stats.DiskActivePercent;
+
+                    // ADDED: Update Tray Tooltip
+                    UpdateTrayToolTip(stats);
                 });
 
             } while (_isRefreshPending);
@@ -249,7 +259,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var result = new List<ProcessInfo>();
         foreach (var node in nodes)
         {
-            bool match = node.Name.Contains(text, StringComparison.OrdinalIgnoreCase);
+            bool match = node.Name.Contains(text, StringComparison.OrdinalIgnoreCase) || node.PidText.Contains(text, StringComparison.OrdinalIgnoreCase);
             var filteredChildren = FilterGraphBySearch(node.Children, text);
 
             if (match || filteredChildren.Count > 0)
@@ -267,7 +277,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     Parameters = node.Parameters,
                     IsService = node.IsService,
                     ParentPid = node.ParentPid,
-                    Icon = node.Icon
+                    ProcessPath = node.ProcessPath
                 };
                 // ProcessInfo.Children is a get-only List, so we use AddRange
                 clone.Children.AddRange(filteredChildren);
@@ -277,7 +287,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return result;
     }
 
-    private void SyncProcessCollection(ObservableCollection<ProcessItemViewModel> collection, List<ProcessInfo> sourceInfos)
+    private void SyncProcessCollection(ObservableCollection<ProcessItemViewModel> collection, List<ProcessInfo> sourceInfos, int depth = 0)
     {
         // Zero-Allocation: Reuse the HashSet
         _reusablePidSet.Clear();
@@ -322,8 +332,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 }
             }
 
+            vm.Depth = depth;
             vm.Refresh();
-            SyncProcessCollection(vm.Children, info.Children);
+            SyncProcessCollection(vm.Children, info.Children, depth + 1);
         }
     }
 
@@ -371,6 +382,81 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
         }
         return true;
+    }
+
+    private void UpdateTrayToolTip(SystemStats stats)
+    {
+        // Format:
+        // CPU: 12.5%  RAM: 45%  Disk: 5%
+        // 1. ProcessA (10.2%)
+        // 2. ProcessB (1.1%)
+        // ...
+
+        double ramPercent = 0;
+        if (stats.TotalPhysicalMemory > 0)
+            ramPercent = ((double)(stats.TotalPhysicalMemory - stats.AvailablePhysicalMemory) / stats.TotalPhysicalMemory) * 100;
+
+        TrayToolTipTextHeader = $"CPU: {stats.TotalCpu:F0}%  RAM: {ramPercent:F0}%  Disk: {stats.DiskActivePercent:F0}%";
+
+        using var sb = StringBuilderPool.Rent();
+
+        if (stats.Top5Processes != null)
+        {
+            int count = 0;
+            foreach (var p in stats.Top5Processes)
+            {
+                if (p == null) break;
+                sb.Builder.AppendLine($"{++count}. {p.Name} ({p.CpuPercentage:F1}%)");
+            }
+        }
+
+        Debug.WriteLine($"Length: {sb.Builder.Length}");
+        TrayToolTipTextBody = sb.Build();
+    }
+
+    [RelayCommand]
+    private void ShowApplication()
+    {
+        var window = Application.Current.MainWindow;
+        if (window != null)
+        {
+            if (window.WindowState == WindowState.Minimized)
+                window.WindowState = WindowState.Normal;
+
+            window.Show();
+            window.Activate();
+        }
+    }
+
+    [RelayCommand]
+    private void ExitApplication()
+    {
+        Application.Current.Shutdown();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanExecuteProcessAction))]
+    private void CopyProcessPath()
+    {
+        if (SelectedProcess == null) return;
+
+        // ProcessPath is already cached in ProcessInfo
+        var path = SelectedProcess.ProcessInfo.ProcessPath;
+
+        if (!string.IsNullOrEmpty(path))
+        {
+            try
+            {
+                Clipboard.SetText(path);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to copy path: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        else
+        {
+            MessageBox.Show("Path is unavailable for this process.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanExecuteProcessAction))]

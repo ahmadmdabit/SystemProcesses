@@ -24,6 +24,7 @@ public class ProcessService : IProcessService, IDisposable
     // Reusable buffers
     private readonly HashSet<int> _currentPidsBuffer = new(1024);
     private readonly List<int> _deadPidsBuffer = new(64);
+    private readonly ProcessInfo?[] _top5Buffer = new ProcessInfo?[5];
 
     // Reusable buffer for NtQuerySystemInformation
     private IntPtr _buffer = IntPtr.Zero;
@@ -324,7 +325,7 @@ public class ProcessService : IProcessService, IDisposable
                     Name = name,
                     ParentPid = parentPid,
                     IsService = isService,
-                    Icon = IconCache.GetIcon(GetProcessPath(pid)),
+                    ProcessPath = GetProcessPath(pid),
                     Parameters = GetCommandLine(pid) // Fetch once
                 };
                 newInfo.Update(cpuUsage, memBytes, virtualBytes, threads, handles);
@@ -358,7 +359,46 @@ public class ProcessService : IProcessService, IDisposable
             _prevProcessStats.Remove(pid); // Remove history
         }
 
+        // ADDED: Calculate Top 5 CPU Processes (O(N) - Single Pass)
+        Array.Clear(_top5Buffer); // Reset buffer
+
+        foreach (var process in _activeProcesses.Values)
+        {
+            // Skip Idle and System for "Top Apps" context if desired, 
+            // but usually users want to see what's eating CPU, including System.
+            // We skip Idle (PID 0) as it's not a real process usage.
+            if (process.Pid == 0) continue;
+
+            InsertIntoTop5(process);
+        }
+
+        stats.Top5Processes = _top5Buffer;
+
         return stats;
+    }
+
+    private void InsertIntoTop5(ProcessInfo candidate)
+    {
+        // Simple insertion sort into fixed size array
+        // We want descending order (Highest CPU at index 0)
+
+        for (int i = 0; i < 5; i++)
+        {
+            var current = _top5Buffer[i];
+
+            if (current == null || candidate.CpuPercentage > current.CpuPercentage)
+            {
+                // Shift remaining items down
+                for (int j = 4; j > i; j--)
+                {
+                    _top5Buffer[j] = _top5Buffer[j - 1];
+                }
+
+                // Insert
+                _top5Buffer[i] = candidate;
+                break;
+            }
+        }
     }
 
     private void RebuildTreeStructure()

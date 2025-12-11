@@ -20,6 +20,8 @@
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 		<PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0" />
+		<PackageReference Include="H.NotifyIcon.Wpf" Version="2.3.2" />
+		<PackageReference Include="Microsoft.Extensions.ObjectPool" Version="10.0.1" />
 		<PackageReference Include="System.Drawing.Common" Version="10.0.1" />
 		<PackageReference Include="System.Management" Version="9.0.0" />
 		<PackageReference Include="System.ServiceProcess.ServiceController" Version="9.0.0" />
