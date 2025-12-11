@@ -11,5 +11,5 @@ public interface IProcessService
     /// Returns the root nodes of the process tree.
     /// Subsequent calls return the SAME ProcessInfo instances with updated properties.
     /// </summary>
-    Task<List<ProcessInfo>> GetProcessTreeAsync();
+    Task<(List<ProcessInfo> Roots, SystemStats Stats)> GetProcessTreeAsync();
 }

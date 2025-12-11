@@ -11,11 +11,21 @@ public partial class MainWindow : Window
         InitializeComponent();
     }
 
-    private void TreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    private void TreeViewSelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         if (DataContext is MainViewModel viewModel && e.NewValue is ProcessItemViewModel selectedProcess)
         {
             viewModel.SelectedProcess = selectedProcess;
+        }
+    }
+
+    private void TreeViewItemPreviewMouseRightButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        // Force selection on right-click so the Context Menu commands apply to the clicked item
+        if (sender is TreeViewItem treeViewItem)
+        {
+            treeViewItem.IsSelected = true;
+            treeViewItem.Focus();
         }
     }
 

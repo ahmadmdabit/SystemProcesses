@@ -1,23 +1,23 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Input;
 using System.Windows.Threading;
+
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 using SystemProcesses.Desktop.Models;
 using SystemProcesses.Desktop.Services;
 
 namespace SystemProcesses.Desktop.ViewModels;
 
-public class MainViewModel : INotifyPropertyChanged, IDisposable
+public partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly IProcessService _processService;
     private readonly DispatcherTimer _refreshTimer;
@@ -26,82 +26,84 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
     // Key: PID
     private readonly Dictionary<int, ProcessItemViewModel> _viewModelCache = new();
 
+    // Reusable collections for SyncProcessCollection to ensure Zero-Allocation
+    private readonly HashSet<int> _reusablePidSet = new();
+    private readonly Stack<ProcessItemViewModel> _reusableStack = new();
+
+    [ObservableProperty]
     private string _searchText = string.Empty;
+
+    private int? _isolationTargetPid;
+
+    // Manual Property Implementation intenionally (Replaces [ObservableProperty])
     private bool _isTreeIsolated;
-    private ProcessItemViewModel? _selectedProcess;
-    private bool _isPaused;
-    private int _refreshInterval = 1000;
-
-    // Concurrency control
-    private bool _isRefreshingProcesses;
-    private bool _isRefreshPending;
-
-    public ObservableCollection<ProcessItemViewModel> Processes { get; } = new();
-    public ObservableCollection<string> RefreshIntervals { get; }
-
-    public string SearchText
-    {
-        get => _searchText;
-        set
-        {
-            if (_searchText != value)
-            {
-                _searchText = value;
-                OnPropertyChanged();
-                Task.Run(RefreshProcessesAsync);
-            }
-        }
-    }
-
     public bool IsTreeIsolated
     {
         get => _isTreeIsolated;
         set
         {
-            if (_isTreeIsolated != value)
+            if (_isTreeIsolated == value) return;
+
+            if (value)
             {
-                _isTreeIsolated = value;
-                OnPropertyChanged();
-                Task.Run(RefreshProcessesAsync);
+                // ACTIVATE: Capture the current selection as the fixed root
+                if (SelectedProcess != null)
+                {
+                    _isolationTargetPid = SelectedProcess.Pid;
+                    _isTreeIsolated = true;
+                }
+                else
+                {
+                    // Cannot isolate if nothing is selected; ignore the toggle
+                    OnPropertyChanged(); // Notify to revert UI checkmark if bound
+                    return;
+                }
             }
+            else
+            {
+                // DEACTIVATE: Release the lock
+                _isolationTargetPid = null;
+                _isTreeIsolated = false;
+            }
+
+            OnPropertyChanged();
+            Task.Run(RefreshProcessesAsync);
         }
     }
 
-    public ProcessItemViewModel? SelectedProcess
-    {
-        get => _selectedProcess;
-        set
-        {
-            if (_selectedProcess != value)
-            {
-                _selectedProcess = value;
-                OnPropertyChanged();
-                ((RelayCommand)GracefulEndProcessCommand).RaiseCanExecuteChanged();
-                ((RelayCommand)GracefulEndProcessTreeCommand).RaiseCanExecuteChanged();
-                ((RelayCommand)EndProcessCommand).RaiseCanExecuteChanged();
-                ((RelayCommand)EndProcessTreeCommand).RaiseCanExecuteChanged();
-                ((RelayCommand)ShowProcessDetailsCommand).RaiseCanExecuteChanged();
-                ((RelayCommand)OpenProcessDirectoryCommand).RaiseCanExecuteChanged();
-            }
-        }
-    }
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(GracefulEndProcessCommand))]
+    [NotifyCanExecuteChangedFor(nameof(GracefulEndProcessTreeCommand))]
+    [NotifyCanExecuteChangedFor(nameof(EndProcessCommand))]
+    [NotifyCanExecuteChangedFor(nameof(EndProcessTreeCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ShowProcessDetailsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(OpenProcessDirectoryCommand))]
+    private ProcessItemViewModel? _selectedProcess;
 
-    public bool IsPaused
-    {
-        get => _isPaused;
-        set
-        {
-            if (_isPaused != value)
-            {
-                _isPaused = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(PauseResumeText));
+    [ObservableProperty] private int _totalProcessCount;
+    [ObservableProperty] private int _totalThreadCount;
+    [ObservableProperty] private int _totalHandleCount;
+    [ObservableProperty] private long _totalMemoryBytes;
+    [ObservableProperty] private double _totalCpuUsage;
+    [ObservableProperty] private long _totalPhysicalMemory;
+    [ObservableProperty] private long _availablePhysicalMemory;
+    [ObservableProperty] private long _totalCommitLimit;
+    [ObservableProperty] private long _availableCommitLimit;
+    [ObservableProperty] private long _totalIoBytesPerSec;
+    [ObservableProperty] private double _diskActivePercent;
 
-                if (_isPaused) _refreshTimer.Stop();
-                else _refreshTimer.Start();
-            }
-        }
-    }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PauseResumeText))]
+    private bool _isPaused;
+
+    private int _refreshInterval = 1000;
+
+    // Concurrency control
+    private readonly System.Threading.SemaphoreSlim _refreshLock = new(1, 1);
+    private bool _isRefreshPending;
+
+    public ObservableCollection<ProcessItemViewModel> Processes { get; } = new();
+    public ObservableCollection<string> RefreshIntervals { get; }
 
     public string PauseResumeText => IsPaused ? "Resume" : "Pause";
 
@@ -110,7 +112,15 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         get => $"{_refreshInterval / 1000}";
         set
         {
-            var seconds = int.Parse(value);
+            if (!int.TryParse(value, out int seconds))
+            {
+                IsPaused = true;
+                return;
+            }
+            else
+            {
+                IsPaused = false;
+            }
             var newInterval = seconds * 1000;
             if (_refreshInterval != newInterval)
             {
@@ -121,74 +131,73 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    public ICommand RefreshCommand { get; }
-    public ICommand GracefulEndProcessCommand { get; }
-    public ICommand GracefulEndProcessTreeCommand { get; }
-    public ICommand EndProcessCommand { get; }
-    public ICommand EndProcessTreeCommand { get; }
-    public ICommand ShowProcessDetailsCommand { get; }
-    public ICommand OpenProcessDirectoryCommand { get; }
-    public ICommand TogglePauseCommand { get; }
-
     public MainViewModel() : this(new ProcessService()) { }
 
     public MainViewModel(IProcessService processService)
     {
         _processService = processService;
-        RefreshIntervals = new ObservableCollection<string> { "1", "2", "5", "10" };
-
-        RefreshCommand = new RelayCommand(async _ => await RefreshProcessesAsync());
-
-        // Async Command Wrapper
-        GracefulEndProcessCommand = new RelayCommand(async _ => await GracefulEndProcessAsync(), _ => SelectedProcess != null);
-        GracefulEndProcessTreeCommand = new RelayCommand(async _ => await GracefulEndProcessTreeAsync(), _ => SelectedProcess != null);
-
-        EndProcessCommand = new RelayCommand(EndProcess, _ => SelectedProcess != null);
-        EndProcessTreeCommand = new RelayCommand(EndProcessTree, _ => SelectedProcess != null);
-        ShowProcessDetailsCommand = new RelayCommand(ShowProcessDetails, _ => SelectedProcess != null);
-        OpenProcessDirectoryCommand = new RelayCommand(OpenProcessDirectory, _ => SelectedProcess != null);
-        TogglePauseCommand = new RelayCommand(_ => IsPaused = !IsPaused);
+        RefreshIntervals = new ObservableCollection<string> { "1", "2", "5", "10", "20", "Disabled" };
 
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(_refreshInterval) };
         _refreshTimer.Tick += async (s, e) =>
         {
             // Don't stop timer, just skip if busy
-            if (!_isRefreshingProcesses) await RefreshProcessesAsync();
+            if (_refreshLock.CurrentCount > 0) await RefreshProcessesAsync();
         };
         _refreshTimer.Start();
 
-        Task.Run(async () => await RefreshProcessesAsync());
+        Task.Run(RefreshProcessesAsync);
     }
 
+    partial void OnSearchTextChanged(string value) => Task.Run(RefreshProcessesAsync);
+    partial void OnIsPausedChanged(bool value)
+    {
+        if (_isPaused) _refreshTimer.Stop();
+        else _refreshTimer.Start();
+    }
+
+    [RelayCommand]
+    private void TogglePause() => IsPaused = !IsPaused;
+
+    [RelayCommand]
     private async Task RefreshProcessesAsync()
     {
         // FIX: Concurrency Loop
         // If a refresh is already running, mark pending so it runs again immediately after.
         // This ensures rapid updates (like typing) are not dropped.
-        if (_isRefreshingProcesses)
+        // Non-blocking check to coalesce rapid updates (like typing)
+        if (_refreshLock.CurrentCount == 0)
         {
             _isRefreshPending = true;
             return;
         }
 
-        _isRefreshingProcesses = true;
+        await _refreshLock.WaitAsync();
 
         try
         {
             do
             {
                 _isRefreshPending = false;
-
-                // 1. Get updated data graph
-                var rootInfos = await _processService.GetProcessTreeAsync();
-
-                // 2. Apply Filters
+                var (rootInfos, stats) = await _processService.GetProcessTreeAsync();
                 var filteredRoots = ApplyFilters(rootInfos);
 
-                // 3. Update UI on Dispatcher
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     SyncProcessCollection(Processes, filteredRoots);
+
+                    // Update Stats
+                    TotalProcessCount = stats.ProcessCount;
+                    TotalThreadCount = stats.ThreadCount;
+                    TotalHandleCount = stats.HandleCount;
+                    TotalMemoryBytes = stats.TotalMemory;
+                    TotalCpuUsage = stats.TotalCpu;
+                    TotalPhysicalMemory = stats.TotalPhysicalMemory;
+                    AvailablePhysicalMemory = stats.AvailablePhysicalMemory;
+                    TotalCommitLimit = stats.TotalCommitLimit;
+                    AvailableCommitLimit = stats.AvailableCommitLimit;
+                    TotalIoBytesPerSec = stats.TotalIoBytesPerSec; 
+                    DiskActivePercent = stats.DiskActivePercent;
                 });
 
             } while (_isRefreshPending);
@@ -199,29 +208,29 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         finally
         {
-            _isRefreshingProcesses = false;
+            _refreshLock.Release();
         }
     }
 
     private List<ProcessInfo> ApplyFilters(List<ProcessInfo> roots)
     {
-        if (string.IsNullOrWhiteSpace(SearchText) && (!IsTreeIsolated || SelectedProcess == null))
+        // Check if we have an active isolation target
+        if (IsTreeIsolated && _isolationTargetPid.HasValue)
+        {
+            // Use the CAPTURED Pid, not the current selection
+            var target = FindProcessInGraph(roots, _isolationTargetPid.Value);
+
+            // If the isolated process still exists, show it. 
+            // If it died, show empty list (or could fallback to full list, but empty is safer for "Isolation")
+            return target != null ? new List<ProcessInfo> { target } : new List<ProcessInfo>();
+        }
+
+        if (string.IsNullOrWhiteSpace(SearchText))
         {
             return roots;
         }
 
-        if (IsTreeIsolated && SelectedProcess != null)
-        {
-            var target = FindProcessInGraph(roots, SelectedProcess.Pid);
-            return target != null ? new List<ProcessInfo> { target } : new List<ProcessInfo>();
-        }
-
-        if (!string.IsNullOrWhiteSpace(SearchText))
-        {
-            return FilterGraphBySearch(roots, SearchText);
-        }
-
-        return roots;
+        return FilterGraphBySearch(roots, SearchText);
     }
 
     private ProcessInfo? FindProcessInGraph(List<ProcessInfo> nodes, int pid)
@@ -268,68 +277,19 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         return result;
     }
 
-    #region Cache Helpers
-    public void BuildCache(ProcessItemViewModel root)
-    {
-        // Iterative stack-based traversal avoids recursion allocations
-        var stack = new Stack<ProcessItemViewModel>();
-        stack.Push(root);
-
-        while (stack.Count > 0)
-        {
-            var node = stack.Pop();
-            _viewModelCache[node.Pid] = node;
-
-            // Push children without LINQ/foreach to avoid allocations
-            var children = node.Children;
-            for (int i = 0; i < children.Count; i++)
-            {
-                stack.Push(children[i]);
-            }
-        }
-    }
-
-    public bool RemoveFromCache(int id, bool includeChildren)
-    {
-        if (!_viewModelCache.TryGetValue(id, out var node))
-            return false;
-
-        // Remove recursively from dictionary
-        var stack = new Stack<ProcessItemViewModel>();
-        stack.Push(node);
-
-        while (stack.Count > 0)
-        {
-            var current = stack.Pop();
-            _viewModelCache.Remove(current.Pid);
-
-            if (includeChildren)
-            {
-                var children = current.Children;
-                for (int i = 0; i < children.Count; i++)
-                {
-                    stack.Push(children[i]);
-                }
-            }
-        }
-        return true;
-    }
-    #endregion
-
-    private ProcessInfo? FindProcessById(int pid)
-    {
-        return _viewModelCache.TryGetValue(pid, out var vm) ? vm!.ProcessInfo : null;
-    }
-
     private void SyncProcessCollection(ObservableCollection<ProcessItemViewModel> collection, List<ProcessInfo> sourceInfos)
     {
-        var sourcePids = new HashSet<int>(sourceInfos.Select(x => x.Pid));
+        // Zero-Allocation: Reuse the HashSet
+        _reusablePidSet.Clear();
+        foreach (var info in sourceInfos)
+        {
+            _reusablePidSet.Add(info.Pid);
+        }
 
         for (int i = collection.Count - 1; i >= 0; i--)
         {
-            if (!sourcePids.Contains(collection[i].Pid))
+            if (!_reusablePidSet.Contains(collection[i].Pid))
             {
-                // FIX: includeChildren = true to prevent leaks
                 RemoveFromCache(collection[i].Pid, true);
                 collection.RemoveAt(i);
             }
@@ -367,76 +327,113 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private async Task GracefulEndProcessAsync()
+    public void BuildCache(ProcessItemViewModel root)
     {
-        var selected = SelectedProcess;
-        if (selected == null) return;
+        // Iterative stack-based traversal avoids recursion allocations
+        _reusableStack.Clear();
+        _reusableStack.Push(root);
 
-        // Capture state to prevent race conditions
-        int pid = selected.Pid;
-        string name = selected.Name;
-
-        if (MessageBox.Show($"Send close request to '{name}' (PID: {pid})?",
-            "Graceful End", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+        while (_reusableStack.Count > 0)
         {
-            return;
-        }
+            var node = _reusableStack.Pop();
+            _viewModelCache[node.Pid] = node;
 
-        try
-        {
-            using var process = Process.GetProcessById(pid);
-
-            // PID Reuse Check: Verify StartTime if possible (requires capturing it earlier, 
-            // but here we assume short duration between selection and action).
-            // Ideally, ProcessInfo should carry StartTime.
-
-            process.Refresh();
-
-            if (process.CloseMainWindow())
+            // Push children without LINQ/foreach to avoid allocations
+            var children = node.Children;
+            for (int i = 0; i < children.Count; i++)
             {
-                // Wait for exit asynchronously
-                bool exited = await Task.Run(() => process.WaitForExit(3000));
-
-                if (exited)
-                {
-                    MessageBox.Show("Process closed successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-                else
-                {
-                    if (MessageBox.Show($"Process '{name}' did not close within 3 seconds.\nForce kill it?",
-                        "Process Unresponsive", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
-                    {
-                        process.Kill();
-                        MessageBox.Show("Process terminated.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
-                    }
-                }
+                _reusableStack.Push(children[i]);
             }
-            else
-            {
-                if (MessageBox.Show($"Could not send close request (No Window or Unresponsive).\nForce kill '{name}'?",
-                    "No Window Found", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
-                {
-                    process.Kill();
-                    MessageBox.Show("Process terminated.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-            }
-        }
-        catch (ArgumentException)
-        {
-            MessageBox.Show($"Process '{name}' (PID: {pid}) is no longer running.", "Process Not Found", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-        catch (Win32Exception ex)
-        {
-            MessageBox.Show($"Access Denied: {ex.Message}\nTry running as Administrator.", "Permission Error", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
+    public bool RemoveFromCache(int id, bool includeChildren)
+    {
+        if (!_viewModelCache.TryGetValue(id, out var node))
+            return false;
+
+        // Remove recursively from dictionary
+        _reusableStack.Clear();
+        _reusableStack.Push(node);
+
+        while (_reusableStack.Count > 0)
+        {
+            var current = _reusableStack.Pop();
+            _viewModelCache.Remove(current.Pid);
+
+            if (includeChildren)
+            {
+                var children = current.Children;
+                for (int i = 0; i < children.Count; i++)
+                {
+                    _reusableStack.Push(children[i]);
+                }
+            }
+        }
+        return true;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanExecuteProcessAction))]
+    private async Task GracefulEndProcessAsync()
+    {
+        if (SelectedProcess == null) return;
+
+        // Capture state to prevent race conditions
+        int pid = SelectedProcess.Pid;
+        string name = SelectedProcess.Name;
+
+        if (MessageBox.Show($"Send close request to '{name}' (PID: {pid})?",
+            "Graceful End", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+
+        await Task.Run(() =>
+        {
+            try
+            {
+                using var process = Process.GetProcessById(pid);
+
+                // PID Reuse Check: Verify StartTime if possible (requires capturing it earlier, 
+                // but here we assume short duration between selection and action).
+                // Ideally, ProcessInfo should carry StartTime.
+
+                process.Refresh();
+                if (process.CloseMainWindow())
+                {
+                    if (!process.WaitForExit(3000))
+                    {
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            if (MessageBox.Show($"Process '{name}' did not close within 3 seconds.\nForce kill it?",
+                                "Process Unresponsive", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+                            {
+                                process.Kill();
+                            }
+                        });
+                    }
+                }
+                else
+                {
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        if (MessageBox.Show($"Could not send close request (No Window or Unresponsive).\nForce kill '{name}'?",
+                            "No Window Found", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+                        {
+                            process.Kill();
+                        }
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Application.Current.Dispatcher.Invoke(() => MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error));
+            }
+        });
+    }
+
+    [RelayCommand(CanExecute = nameof(CanExecuteProcessAction))]
     private async Task GracefulEndProcessTreeAsync()
     {
+
         var selected = SelectedProcess;
         if (selected == null) return;
 
@@ -557,41 +554,26 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private void EndProcess(object? parameter)
+    [RelayCommand(CanExecute = nameof(CanExecuteProcessAction))]
+    private void EndProcess()
     {
-        if (SelectedProcess == null)
-            return;
-
-        var result = MessageBox.Show(
-            $"Are you sure you want to end process '{SelectedProcess.Name}' (PID: {SelectedProcess.Pid})?",
-            "End Process",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
-
-        if (result == MessageBoxResult.Yes)
+        if (SelectedProcess == null) return;
+        if (MessageBox.Show($"End process '{SelectedProcess.Name}' (PID: {SelectedProcess.Pid})?", "End Process", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
         {
             try
             {
                 using var process = Process.GetProcessById(SelectedProcess.Pid);
-
-                // PID Reuse Check: Verify StartTime if possible (requires capturing it earlier, 
-                // but here we assume short duration between selection and action).
-                // Ideally, ProcessInfo should carry StartTime.
-
-                process.Refresh();
                 process.Kill();
-                MessageBox.Show("Process terminated successfully.", "Success",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Failed to end process: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Failed: {ex.Message}");
             }
         }
     }
 
-    private void EndProcessTree(object? parameter)
+    [RelayCommand(CanExecute = nameof(CanExecuteProcessAction))]
+    private void EndProcessTree()
     {
         if (SelectedProcess == null)
             return;
@@ -618,19 +600,22 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    private bool CanExecuteProcessAction() => SelectedProcess != null;
+
     private void StopProcessAndChildren(int pid)
     {
-        var processInfo = FindProcessById(pid);
-        if (processInfo == null)
+        if (!_viewModelCache.TryGetValue(pid, out var vm))
             return;
 
-        // Kill children first
+        var processInfo = vm.ProcessInfo;
+
+        // Stop children first
         foreach (var child in processInfo.Children)
         {
             StopProcessAndChildren(child.Pid);
         }
 
-        // Then kill the process itself
+        // Then stop the process itself
         try
         {
             using var process = Process.GetProcessById(pid);
@@ -648,7 +633,8 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private void ShowProcessDetails(object? parameter)
+    [RelayCommand(CanExecute = nameof(CanExecuteProcessAction))]
+    private void ShowProcessDetails()
     {
         if (SelectedProcess == null) return;
 
@@ -684,7 +670,8 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         MessageBox.Show(details.ToString(), "Process Details", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
-    private void OpenProcessDirectory(object? parameter)
+    [RelayCommand(CanExecute = nameof(CanExecuteProcessAction))]
+    private void OpenProcessDirectory()
     {
         if (SelectedProcess == null)
             return;
@@ -720,7 +707,6 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    // FIX: Updated to match BytesToAutoFormatConverter logic (TB, GB, MB, KB, B)
     private static string FormatBytes(long bytes)
     {
         const long KB = 1024;
@@ -735,8 +721,5 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         return $"{bytes} B";
     }
 
-    public void Dispose() { _refreshTimer?.Stop(); }
-    public event PropertyChangedEventHandler? PropertyChanged;
-    protected void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    public void Dispose() => _refreshTimer?.Stop();
 }
