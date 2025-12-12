@@ -4,13 +4,13 @@
   </a>
 </p>
 
-# SystemProcesses.Desktop
+# SystemProcesses
 
 **A high-performance, zero-allocation system monitor built with .NET 9 and WPF.**
 
 ![Platform](https://img.shields.io/badge/platform-Windows-blue) ![Framework](https://img.shields.io/badge/.NET-9.0-purple) ![License](https://img.shields.io/badge/license-MIT-green)
 
-`SystemProcesses.Desktop` is a lightweight Task Manager alternative engineered for minimal resource usage. Unlike standard tools that rely on the heavy `System.Diagnostics.Process` API, this project interacts directly with the Windows Kernel (`ntdll.dll`) to scrape system data with near-zero garbage collection overhead.
+`SystemProcesses` is a lightweight Task Manager alternative engineered for minimal resource usage. Unlike standard tools that rely on the heavy `System.Diagnostics.Process` API, this project interacts directly with the Windows Kernel (`ntdll.dll`) to scrape system data with near-zero garbage collection overhead.
 
 ## 🚀 Key Features
 
