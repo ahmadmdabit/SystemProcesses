@@ -31,6 +31,9 @@ public class ProcessInfo
     public int ThreadCount { get; set; }
     public int HandleCount { get; set; }
 
+    // Unique timestamp (FileTime) from the OS kernel
+    public long CreateTime { get; set; }
+
     // Initialized once, reused forever.
     public List<ProcessInfo> Children { get; } = [];
 
@@ -43,6 +46,13 @@ public class ProcessInfo
         ThreadCount = threads;
         HandleCount = handles;
     }
+}
+
+public struct DriveStats
+{
+    public char Letter;
+    public long TotalSize;
+    public long AvailableFreeSpace;
 }
 
 public struct SystemStats
@@ -74,6 +84,10 @@ public struct SystemStats
     public long TotalIoBytesPerSec;
 
     public double DiskActivePercent;
+
+    public int DriveCount;
+
+    public DriveStats[] Drives;
 
     // Fixed-size array for Top 5 to avoid List allocations
     public ProcessInfo?[] Top5Processes;

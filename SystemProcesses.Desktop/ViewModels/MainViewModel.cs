@@ -109,6 +109,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private long availableCommitLimit;
     [ObservableProperty] private long totalIoBytesPerSec;
     [ObservableProperty] private double diskActivePercent;
+    [ObservableProperty] private double ramFreePercentage;
+    [ObservableProperty] private double vmFreePercentage;
+
+    [ObservableProperty] private string storageStatsText = string.Empty;
+    [ObservableProperty] private string storageStatsTrayText = string.Empty;
 
     [ObservableProperty]
     private string trayToolTipTextHeader = "System Processes\nInitializing...";
@@ -243,8 +248,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     AvailablePhysicalMemory = stats.AvailablePhysicalMemory;
                     TotalCommitLimit = stats.TotalCommitLimit;
                     AvailableCommitLimit = stats.AvailableCommitLimit;
+
+                    // Calculate Percentages (Zero-Alloc)
+                    if (stats.TotalPhysicalMemory > 0)
+                        RamFreePercentage = (double)stats.AvailablePhysicalMemory / stats.TotalPhysicalMemory * 100.0;
+
+                    if (stats.TotalCommitLimit > 0)
+                        VmFreePercentage = (double)stats.AvailableCommitLimit / stats.TotalCommitLimit * 100.0;
+
                     TotalIoBytesPerSec = stats.TotalIoBytesPerSec;
                     DiskActivePercent = stats.DiskActivePercent;
+
+                    // Update Storage Stats
+                    UpdateStorageStats(stats);
 
                     // Update Tray Tooltip
                     UpdateTrayState(stats);
@@ -423,6 +439,35 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return true;
     }
 
+    private void UpdateStorageStats(SystemStats stats)
+    {
+        if (stats.DriveCount == 0 || stats.Drives == null)
+        {
+            StorageStatsText = string.Empty;
+            StorageStatsTrayText = string.Empty;
+            return;
+        }
+
+        using var sb = StringBuilderPool.Rent();
+        using var sb2 = StringBuilderPool.Rent();
+        for (int i = 0; i < stats.DriveCount; i++)
+        {
+            var d = stats.Drives[i];
+            if (sb.Builder.Length > 0) sb.Builder.Append("   ");
+
+            double percent = 0;
+            if (d.TotalSize > 0)
+                percent = (double)d.AvailableFreeSpace / d.TotalSize * 100.0;
+
+            // Format: C: 20 GB / 200 GB (Available 10%)
+            sb.Builder.Append($"{d.Letter}: {FormatBytes(d.AvailableFreeSpace)} ({percent:F0}%)");
+            //sb.Builder.Append($"{d.Letter}: {FormatBytes(d.AvailableFreeSpace)} / {FormatBytes(d.TotalSize)} ({percent:F0}%)");
+            sb2.Builder.AppendLine($"{d.Letter}: {FormatBytes(d.AvailableFreeSpace)} ({percent:F0}%)");
+        }
+        StorageStatsText = sb.Build();
+        StorageStatsTrayText = sb2.Build().TrimEnd();
+    }
+
     private void UpdateTrayState(SystemStats stats)
     {
         // ...... PART 1: Update Icon (CPU Number) ......
@@ -436,11 +481,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         // ...... PART 2: Update Tooltip (StringBuilder Pool) ......
 
+        // RAM
         double ramPercent = 0;
         if (stats.TotalPhysicalMemory > 0)
             ramPercent = ((double)(stats.TotalPhysicalMemory - stats.AvailablePhysicalMemory) / stats.TotalPhysicalMemory) * 100;
 
-        TrayToolTipTextHeader = $"CPU: {stats.TotalCpu:F0}%  RAM: {ramPercent:F0}%  Disk: {stats.DiskActivePercent:F0}%";
+        // VM
+        double vmPercent = 0;
+        if (stats.TotalCommitLimit > 0)
+            vmPercent = ((double)(stats.TotalCommitLimit - stats.AvailableCommitLimit) / stats.TotalCommitLimit) * 100;
+
+        TrayToolTipTextHeader = $"CPU: {stats.TotalCpu:F0}%  RAM: {ramPercent:F0}%  VM: {vmPercent:F0}%  Disk: {stats.DiskActivePercent:F0}%";
 
         using var sb = StringBuilderPool.Rent();
 
@@ -454,7 +505,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
         }
 
-        TrayToolTipTextBody = sb.Build();
+        TrayToolTipTextBody = sb.Build().TrimEnd();
     }
 
     // Shared Confirmation Logic

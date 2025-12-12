@@ -124,19 +124,13 @@ public static class StringBuilderPool
         public StringBuilder BuilderRef => Builder;
 
         /// <summary>
-        /// Produce the resulting string and return the builder to the pool in one call.
-        /// After calling Build(), the PooledStringBuilder is considered disposed.
+        /// Produce the resulting string.
+        /// DX: This method DOES NOT dispose the builder. You must use 'using' or call Dispose() manually.
+        /// This prevents the "Double-Return" bug where 'using' and 'Build()' both returned the builder to the pool.
         /// </summary>
         public string Build()
         {
-            try
-            {
-                return Builder.ToString();
-            }
-            finally
-            {
-                Dispose();
-            }
+            return Builder.ToString();
         }
 
         /// <summary>

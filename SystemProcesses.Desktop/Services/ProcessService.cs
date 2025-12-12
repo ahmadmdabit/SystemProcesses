@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
@@ -28,6 +29,7 @@ public class ProcessService : IProcessService, IDisposable
 
     private readonly List<int> stoppedPidsBuffer = new(64);
     private readonly ProcessInfo?[] top5Buffer = new ProcessInfo?[5];
+    private readonly DriveStats[] driveBuffer = new DriveStats[26]; // Max drive letters A-Z
 
     // Reusable buffer for NtQuerySystemInformation
     private IntPtr buffer = IntPtr.Zero;
@@ -56,7 +58,7 @@ public class ProcessService : IProcessService, IDisposable
         try
         {
             // 1. Open Query
-            int status = NativeMethods.PdhOpenQuery(IntPtr.Zero, IntPtr.Zero, out pdhQuery);
+            int status = SystemPrimitives.PdhOpenQuery(IntPtr.Zero, IntPtr.Zero, out pdhQuery);
 
             if (status != 0)
             {
@@ -65,19 +67,19 @@ public class ProcessService : IProcessService, IDisposable
 
             // 2. Try PhysicalDisk
             const string physPath = "\\PhysicalDisk(_Total)\\% Idle Time";
-            status = NativeMethods.PdhAddEnglishCounter(pdhQuery, physPath, IntPtr.Zero, out pdhDiskIdleCounter);
+            status = SystemPrimitives.PdhAddEnglishCounter(pdhQuery, physPath, IntPtr.Zero, out pdhDiskIdleCounter);
 
             // 3. Fallback to LogicalDisk
             if (status != 0)
             {
                 const string logPath = "\\LogicalDisk(_Total)\\% Idle Time";
-                status = NativeMethods.PdhAddEnglishCounter(pdhQuery, logPath, IntPtr.Zero, out pdhDiskIdleCounter);
+                status = SystemPrimitives.PdhAddEnglishCounter(pdhQuery, logPath, IntPtr.Zero, out pdhDiskIdleCounter);
             }
 
             // 4. Initial Collect
             if (status == 0)
             {
-                status = NativeMethods.PdhCollectQueryData(pdhQuery);
+                status = SystemPrimitives.PdhCollectQueryData(pdhQuery);
 
                 if (status == 0)
                 {
@@ -111,8 +113,8 @@ public class ProcessService : IProcessService, IDisposable
     private unsafe void RefreshServicePids()
     {
         servicePids.Clear();
-        IntPtr scmHandle = NativeMethods.OpenSCManagerW(null, null,
-            NativeMethods.ScManagerConnect | NativeMethods.ScManagerEnumerateService);
+        IntPtr scmHandle = SystemPrimitives.OpenSCManagerW(null, null,
+            SystemPrimitives.ScManagerConnect | SystemPrimitives.ScManagerEnumerateService);
 
         if (scmHandle == IntPtr.Zero)
         {
@@ -127,24 +129,24 @@ public class ProcessService : IProcessService, IDisposable
             int resumeHandle = 0;
 
             // First call to get size
-            NativeMethods.EnumServicesStatusExW(scmHandle, NativeMethods.ScEnumProcessInfo,
-                NativeMethods.ServiceWIN32, NativeMethods.ServiceStateAll,
+            SystemPrimitives.EnumServicesStatusExW(scmHandle, SystemPrimitives.ScEnumProcessInfo,
+                SystemPrimitives.ServiceWIN32, SystemPrimitives.ServiceStateAll,
                 IntPtr.Zero, 0, out bytesNeeded, out servicesReturned, ref resumeHandle, null);
 
             if (bytesNeeded > 0)
             {
                 buf = Marshal.AllocHGlobal(bytesNeeded);
-                if (NativeMethods.EnumServicesStatusExW(scmHandle, NativeMethods.ScEnumProcessInfo,
-                    NativeMethods.ServiceWIN32, NativeMethods.ServiceStateAll,
+                if (SystemPrimitives.EnumServicesStatusExW(scmHandle, SystemPrimitives.ScEnumProcessInfo,
+                    SystemPrimitives.ServiceWIN32, SystemPrimitives.ServiceStateAll,
                     buf, bytesNeeded, out bytesNeeded, out servicesReturned, ref resumeHandle, null))
                 {
                     byte* ptr = (byte*)buf;
-                    int structSize = Marshal.SizeOf<NativeMethods.EnumServiceStatusProcess>();
+                    int structSize = Marshal.SizeOf<SystemPrimitives.EnumServiceStatusProcess>();
 
                     for (int i = 0; i < servicesReturned; i++)
                     {
                         // Direct pointer access to avoid full struct marshalling
-                        var serviceStruct = (NativeMethods.EnumServiceStatusProcess*)ptr;
+                        var serviceStruct = (SystemPrimitives.EnumServiceStatusProcess*)ptr;
                         int pid = serviceStruct->ServiceStatusProcess.dwProcessId;
 
                         if (pid > 0)
@@ -163,26 +165,26 @@ public class ProcessService : IProcessService, IDisposable
                 Marshal.FreeHGlobal(buf);
             }
 
-            NativeMethods.CloseServiceHandle(scmHandle);
+            SystemPrimitives.CloseServiceHandle(scmHandle);
         }
     }
 
     private unsafe SystemStats UpdateProcessSnapshot()
     {
         int requiredSize = 0;
-        int status = NativeMethods.NtQuerySystemInformation(
-            NativeMethods.SystemProcessInformationValue,
+        int status = SystemPrimitives.NtQuerySystemInformation(
+            SystemPrimitives.SystemProcessInformationValue,
             buffer,
             bufferSize,
             out requiredSize);
 
-        if (status == NativeMethods.StatusInfoLengthMismatch)
+        if (status == SystemPrimitives.StatusInfoLengthMismatch)
         {
             Marshal.FreeHGlobal(buffer);
             bufferSize = requiredSize + (1024 * 1024); // Add 1MB padding
             buffer = Marshal.AllocHGlobal(bufferSize);
-            status = NativeMethods.NtQuerySystemInformation(
-                NativeMethods.SystemProcessInformationValue,
+            status = SystemPrimitives.NtQuerySystemInformation(
+                SystemPrimitives.SystemProcessInformationValue,
                 buffer,
                 bufferSize,
                 out requiredSize);
@@ -191,19 +193,19 @@ public class ProcessService : IProcessService, IDisposable
         // Initialize Stats
         var stats = new SystemStats();
 
-        if (status != NativeMethods.StatusSuccess)
+        if (status != SystemPrimitives.StatusSuccess)
         {
             return stats;
         }
 
         if (isPdhInitialized)
         {
-            int collectStatus = NativeMethods.PdhCollectQueryData(pdhQuery);
+            int collectStatus = SystemPrimitives.PdhCollectQueryData(pdhQuery);
 
-            NativeMethods.PdhFmtCountervalue value;
-            int readStatus = NativeMethods.PdhGetFormattedCounterValue(
+            SystemPrimitives.PdhFmtCountervalue value;
+            int readStatus = SystemPrimitives.PdhGetFormattedCounterValue(
                 pdhDiskIdleCounter,
-                NativeMethods.PdhFmtDouble,
+                SystemPrimitives.PdhFmtDouble,
                 IntPtr.Zero,
                 out value);
 
@@ -233,14 +235,48 @@ public class ProcessService : IProcessService, IDisposable
             }
         }
 
-        var memStatus = NativeMethods.MemoryStatusEx.Default;
-        if (NativeMethods.GlobalMemoryStatusEx(ref memStatus))
+        var memStatus = SystemPrimitives.MemoryStatusEx.Default;
+        if (SystemPrimitives.GlobalMemoryStatusEx(ref memStatus))
         {
             stats.TotalPhysicalMemory = (long)memStatus.ullTotalPhys;
             stats.AvailablePhysicalMemory = (long)memStatus.ullAvailPhys;
             stats.TotalCommitLimit = (long)memStatus.ullTotalPageFile;
             stats.AvailableCommitLimit = (long)memStatus.ullAvailPageFile;
         }
+
+        // Storage Stats (Zero-Alloc, P/Invoke)
+        int driveCount = 0;
+        uint drivesBitMask = SystemPrimitives.GetLogicalDrives();
+
+        // Stack allocate path buffer: "X:\\\0" (4 chars)
+        char* rootPath = stackalloc char[4];
+        rootPath[1] = ':';
+        rootPath[2] = '\\';
+        rootPath[3] = '\0';
+
+        // Iterate bits 0-25 (A-Z)
+        for (int i = 0; i < 26; i++)
+        {
+            if ((drivesBitMask & (1 << i)) != 0)
+            {
+                rootPath[0] = (char)('A' + i);
+
+                // Filter for Fixed drives only (HDD/SSD) to avoid latency/timeouts
+                if (SystemPrimitives.GetDriveTypeW(rootPath) == SystemPrimitives.DriveFixed)
+                {
+                    ulong freeBytes, totalBytes, totalFree;
+                    if (SystemPrimitives.GetDiskFreeSpaceExW(rootPath, out freeBytes, out totalBytes, out totalFree))
+                    {
+                        ref var d = ref driveBuffer[driveCount++];
+                        d.Letter = rootPath[0];
+                        d.TotalSize = (long)totalBytes;
+                        d.AvailableFreeSpace = (long)freeBytes;
+                    }
+                }
+            }
+        }
+        stats.DriveCount = driveCount;
+        stats.Drives = driveBuffer;
 
         long currentTicks = DateTime.UtcNow.Ticks;
         double deltaTime = (currentTicks - prevTicks);
@@ -249,13 +285,13 @@ public class ProcessService : IProcessService, IDisposable
 
         currentPidsBuffer.Clear();
         long offset = 0;
-        NativeMethods.SystemProcessInformation* ptr;
+        SystemPrimitives.SystemProcessInformation* ptr;
 
         long globalIoDelta = 0;
 
         do
         {
-            ptr = (NativeMethods.SystemProcessInformation*)((byte*)buffer + offset);
+            ptr = (SystemPrimitives.SystemProcessInformation*)((byte*)buffer + offset);
             int pid = ptr->UniqueProcessId.ToInt32();
             currentPidsBuffer.Add(pid);
 
@@ -331,14 +367,17 @@ public class ProcessService : IProcessService, IDisposable
                 }
                 else
                 {
+                    // DX: UNICODE_STRING.Length is reported in BYTES by the OS kernel.
+                    // Marshal.PtrToStringUni expects a length in CHARACTERS.
+                    // Since UTF-16 uses 2 bytes per character, we divide by 2 to get the correct count.
                     // Zero-alloc string creation if possible, but we need a string for WPF.
-                    // Marshal.PtrToStringUni is optimized in modern .NET.
-                    name = Marshal.PtrToStringUni(ptr->ImageName.Buffer) ?? "Unknown";
+                    name = Marshal.PtrToStringUni(ptr->ImageName.Buffer, ptr->ImageName.Length / 2) ?? "Unknown";
                 }
 
                 var newInfo = new ProcessInfo
                 {
                     Pid = pid,
+                    CreateTime = ptr->CreateTime,
                     Name = name,
                     ParentPid = parentPid,
                     IsService = isService,
@@ -470,8 +509,8 @@ public class ProcessService : IProcessService, IDisposable
             return string.Empty;
         }
 
-        IntPtr hProcess = NativeMethods.OpenProcess(
-            NativeMethods.ProcessQueryLimitedInformation, false, pid);
+        IntPtr hProcess = SystemPrimitives.OpenProcess(
+            SystemPrimitives.ProcessQueryLimitedInformation, false, pid);
 
         if (hProcess == IntPtr.Zero)
         {
@@ -482,8 +521,8 @@ public class ProcessService : IProcessService, IDisposable
         {
             int bufferSize = 0;
             // Get size first (usually returns STATUS_INFO_LENGTH_MISMATCH)
-            NativeMethods.NtQueryInformationProcess(hProcess,
-                NativeMethods.ProcessCommandLineInformation, IntPtr.Zero, 0, out bufferSize);
+            SystemPrimitives.NtQueryInformationProcess(hProcess,
+                SystemPrimitives.ProcessCommandLineInformation, IntPtr.Zero, 0, out bufferSize);
 
             if (bufferSize == 0)
             {
@@ -493,16 +532,19 @@ public class ProcessService : IProcessService, IDisposable
             IntPtr buffer = Marshal.AllocHGlobal(bufferSize);
             try
             {
-                int status = NativeMethods.NtQueryInformationProcess(hProcess,
-                    NativeMethods.ProcessCommandLineInformation, buffer, bufferSize, out _);
+                int status = SystemPrimitives.NtQueryInformationProcess(hProcess,
+                    SystemPrimitives.ProcessCommandLineInformation, buffer, bufferSize, out _);
 
-                if (status == NativeMethods.StatusSuccess)
+                if (status == SystemPrimitives.StatusSuccess)
                 {
                     // Read UNICODE_STRING
-                    var unicodeString = Marshal.PtrToStructure<NativeMethods.UnicodeString>(buffer);
+                    var unicodeString = Marshal.PtrToStructure<SystemPrimitives.UnicodeString>(buffer);
                     if (unicodeString.Buffer != IntPtr.Zero && unicodeString.Length > 0)
                     {
-                        return Marshal.PtrToStringUni(unicodeString.Buffer) ?? string.Empty;
+                        // DX: The kernel buffer is not guaranteed to be null-terminated.
+                        // We must explicitly tell .NET how many characters to read.
+                        // Calculation: [OS Byte Count] / 2 = [.NET Char Count]
+                        return Marshal.PtrToStringUni(unicodeString.Buffer, unicodeString.Length / 2) ?? string.Empty;
                     }
                 }
             }
@@ -518,7 +560,7 @@ public class ProcessService : IProcessService, IDisposable
         }
         finally
         {
-            NativeMethods.CloseHandle(hProcess);
+            SystemPrimitives.CloseHandle(hProcess);
         }
 
         return string.Empty;
@@ -550,7 +592,7 @@ public class ProcessService : IProcessService, IDisposable
 
         if (pdhQuery != IntPtr.Zero)
         {
-            NativeMethods.PdhCloseQuery(pdhQuery);
+            SystemPrimitives.PdhCloseQuery(pdhQuery);
             pdhQuery = IntPtr.Zero;
         }
 

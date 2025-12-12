@@ -7,7 +7,7 @@ namespace SystemProcesses.Desktop.Services;
 /// Provides direct access to NtQuerySystemInformation for bulk process
 /// data retrieval without the overhead of System.Diagnostics.Process.
 /// </summary>
-internal static partial class NativeMethods
+internal static partial class SystemPrimitives
 {
     #region Process Information (ntdll.dll, kernel32.dll)
 
@@ -359,4 +359,70 @@ internal static partial class NativeMethods
     #endregion Structures
 
     #endregion Performance Data Helper (pdh.dll)
+
+    #region Disk Information (kernel32.dll)
+
+    #region Constants
+
+    /// <summary>
+    /// The drive has fixed media; for example, a hard drive or flash drive.
+    /// </summary>
+    public const uint DriveFixed = 3;
+
+    #endregion Constants
+
+    #region Methods
+
+    /// <summary>
+    /// Retrieves a bitmask representing the currently available disk drives.
+    /// </summary>
+    /// <returns>
+    /// If the function succeeds, the return value is a bitmask representing the currently available disk drives.
+    /// Bit position 0 (the least-significant bit) is drive A, bit position 1 is drive B, and so on.
+    /// </returns>
+    [LibraryImport("kernel32.dll")]
+    public static partial uint GetLogicalDrives();
+
+    /// <summary>
+    /// Determines whether a disk drive is a removable, fixed, CD-ROM, RAM disk, or network drive.
+    /// </summary>
+    /// <param name="lpRootPathName">
+    /// The root directory for the drive. A trailing backslash is required.
+    /// If this parameter is NULL, the function uses the root of the current directory.
+    /// </param>
+    /// <returns>The return value specifies the type of drive, such as DRIVE_FIXED (3).</returns>
+    [LibraryImport("kernel32.dll")]
+    public static unsafe partial uint GetDriveTypeW(char* lpRootPathName);
+
+    /// <summary>
+    /// Retrieves information about the amount of space that is available on a disk volume,
+    /// which is the total amount of space, the total amount of free space, and the total
+    /// amount of free space available to the user that is associated with the calling thread.
+    /// </summary>
+    /// <param name="lpDirectoryName">
+    /// A directory on the disk. If this parameter is NULL, the function uses the root of the current disk.
+    /// </param>
+    /// <param name="lpFreeBytesAvailable">
+    /// A pointer to a variable that receives the total number of free bytes on a disk that are available
+    /// to the user who is associated with the calling thread.
+    /// </param>
+    /// <param name="lpTotalNumberOfBytes">
+    /// A pointer to a variable that receives the total number of bytes on a disk that are available
+    /// to the user who is associated with the calling thread.
+    /// </param>
+    /// <param name="lpTotalNumberOfFreeBytes">
+    /// A pointer to a variable that receives the total number of free bytes on a disk.
+    /// </param>
+    /// <returns>If the function succeeds, the return value is nonzero (true).</returns>
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static unsafe partial bool GetDiskFreeSpaceExW(
+        char* lpDirectoryName,
+        out ulong lpFreeBytesAvailable,
+        out ulong lpTotalNumberOfBytes,
+        out ulong lpTotalNumberOfFreeBytes);
+
+    #endregion Methods
+
+    #endregion Disk Information (kernel32.dll)
 }

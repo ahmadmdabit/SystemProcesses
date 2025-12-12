@@ -315,7 +315,7 @@ public class LiteDialogService : ILiteDialogService
                 // OPTIMIZED: O(1) Lookup via Win32
                 Window? activeOwner = null;
 
-                IntPtr hwnd = NativeMethods.GetActiveWindow();
+                IntPtr hwnd = SystemPrimitives.GetActiveWindow();
                 if (hwnd != IntPtr.Zero)
                 {
                     // Convert HWND back to WPF Window

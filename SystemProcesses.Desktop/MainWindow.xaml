@@ -11,7 +11,7 @@
     Width="960"
     Height="500"
     Closing="uiRootClosing"
-    Icon="/Resources/Images/AppIcon/SystemProcess.png"
+    Icon="/Resources/Images/TrayIcon/SystemProcess-Tray.ico"
     StateChanged="uiRootStateChanged"
     WindowStartupLocation="CenterScreen"
     mc:Ignorable="d">
@@ -48,7 +48,7 @@
 
             <tb:TaskbarIcon.TrayPopup>
                 <Border
-                    Width="220"
+                    Width="280"
                     Margin="0,0,0,47"
                     Padding="10"
                     Background="Black"
@@ -58,21 +58,71 @@
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <TextBlock
+                        <Border
                             Grid.Row="0"
-                            Margin="0,0,0,5"
-                            FontWeight="Bold"
-                            Foreground="#00EE00"
-                            Text="{Binding TrayToolTipTextHeader}"
-                            TextWrapping="Wrap" />
-                        <TextBlock
+                            Margin="0,0,0,10"
+                            Padding="10"
+                            Background="Black"
+                            BorderBrush="#00EE00"
+                            BorderThickness="1"
+                            CornerRadius="10">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock
+                                    Grid.Row="0"
+                                    Margin="0,0,0,5"
+                                    FontWeight="Bold"
+                                    Foreground="#00EE00"
+                                    Text="{Binding TrayToolTipTextHeader}"
+                                    TextWrapping="Wrap" />
+
+                                <TextBlock
+                                    Grid.Row="1"
+                                    Margin="0,0,0,5"
+                                    FontWeight="Bold"
+                                    Foreground="#00EE00"
+                                    Text="{Binding StorageStatsTrayText}"
+                                    TextWrapping="Wrap" />
+                            </Grid>
+                        </Border>
+
+                        <Border
                             Grid.Row="1"
                             Margin="0,0,0,0"
-                            Foreground="#00EE00"
-                            Text="{Binding TrayToolTipTextBody}"
-                            TextWrapping="Wrap" />
+                            Padding="10"
+                            Background="Black"
+                            BorderBrush="#00EE00"
+                            BorderThickness="1"
+                            CornerRadius="10">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock
+                                    Grid.Row="0"
+                                    Margin="0,0,0,5"
+                                    FontWeight="Bold"
+                                    Foreground="#00EE00"
+                                    Text="Top 5 Processes:"
+                                    TextWrapping="Wrap" />
+
+                                <TextBlock
+                                    Grid.Row="1"
+                                    Margin="0,0,0,0"
+                                    Foreground="#00EE00"
+                                    Text="{Binding TrayToolTipTextBody}"
+                                    TextWrapping="Wrap" />
+                            </Grid>
+                        </Border>
+
                     </Grid>
                 </Border>
             </tb:TaskbarIcon.TrayPopup>
@@ -125,7 +175,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="130" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
@@ -135,20 +185,24 @@
                 VerticalAlignment="Center"
                 Orientation="Horizontal">
 
-                <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
-                    <TextBlock FontWeight="Bold" Text="Processes: " />
-                    <TextBlock Text="{Binding TotalProcessCount}" />
-                </StackPanel>
+                <StackPanel.ToolTip>
+                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                        <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
+                            <TextBlock FontWeight="Bold" Text="Processes: " />
+                            <TextBlock Text="{Binding TotalProcessCount}" />
+                        </StackPanel>
 
-                <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
-                    <TextBlock FontWeight="Bold" Text="Threads: " />
-                    <TextBlock Text="{Binding TotalThreadCount}" />
-                </StackPanel>
+                        <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
+                            <TextBlock FontWeight="Bold" Text="Threads: " />
+                            <TextBlock Text="{Binding TotalThreadCount}" />
+                        </StackPanel>
 
-                <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
-                    <TextBlock FontWeight="Bold" Text="Handles: " />
-                    <TextBlock Text="{Binding TotalHandleCount}" />
-                </StackPanel>
+                        <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
+                            <TextBlock FontWeight="Bold" Text="Handles: " />
+                            <TextBlock Text="{Binding TotalHandleCount}" />
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel.ToolTip>
 
                 <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
                     <TextBlock FontWeight="Bold" Text="CPU: " />
@@ -159,15 +213,28 @@
                     <TextBlock
                         FontWeight="Bold"
                         Text="RAM: "
-                        ToolTip="Available / Total Physical" />
+                        ToolTip="Available Physical Memory" />
                     <TextBlock Text="{Binding AvailablePhysicalMemory, Converter={StaticResource BytesToAutoFormatConverter}}" />
-                    <TextBlock Text=" / " />
-                    <TextBlock Text="{Binding TotalPhysicalMemory, Converter={StaticResource BytesToAutoFormatConverter}}" />
+                    <TextBlock Text="{Binding RamFreePercentage, StringFormat=' ({0:F0}%)'}" />
+                </StackPanel>
+
+                <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
+                    <TextBlock
+                        FontWeight="Bold"
+                        Text="VM: "
+                        ToolTip="Available Virtual Memory (Commit Limit)" />
+                    <TextBlock Text="{Binding AvailableCommitLimit, Converter={StaticResource BytesToAutoFormatConverter}}" />
+                    <TextBlock Text="{Binding VmFreePercentage, StringFormat=' ({0:F0}%)'}" />
                 </StackPanel>
 
                 <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
                     <TextBlock FontWeight="Bold" Text="Disk: " />
                     <TextBlock Text="{Binding DiskActivePercent, StringFormat='{}{0:F0}%'}" TextAlignment="Right" />
+                </StackPanel>
+
+                <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
+                    <TextBlock FontWeight="Bold" Text="Storage: " />
+                    <TextBlock Text="{Binding StorageStatsText}" TextAlignment="Right" />
                 </StackPanel>
             </StackPanel>
 
@@ -176,7 +243,8 @@
                 Margin="0,0,5,0"
                 Padding="2"
                 VerticalAlignment="Center"
-                Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                ToolTip="Filter the process by Process name or Id" />
             <ComboBox
                 Grid.Column="3"
                 Padding="2"
