@@ -7,6 +7,8 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
+using Serilog;
+
 namespace SystemProcesses.Desktop.Services;
 
 /// <summary>
@@ -53,11 +55,11 @@ public static class IconCache
                 return value;
             }
         }
-        catch
+        catch (Exception ex)
         {
             // Icon extraction failed (access denied, etc.)
-            // Cache null or a default icon to prevent retrying endlessly? 
-            // For now, we just return null and let it retry later or stay empty.
+            // Cache null or a default icon to prevent retrying endlessly?
+            Log.Warning(ex, "Icon extraction failed");
             return null;
         }
     }

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,6 +13,8 @@ using System.Windows.Threading;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+
+using Serilog;
 
 using SystemProcesses.Desktop.Helpers;
 using SystemProcesses.Desktop.Models;
@@ -37,6 +38,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     // Reusable collections for SyncProcessCollection to ensure Zero-Allocation
     private readonly HashSet<int> reusablePidSet = [];
+
     private readonly Stack<ProcessItemViewModel> reusableStack = new();
 
     // Zero-Allocation Cache for strings "0" to "100"
@@ -52,6 +54,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     // Manual Property Implementation intenionally (Replaces [ObservableProperty])
     private bool isTreeIsolated;
+
     public bool IsTreeIsolated
     {
         get => isTreeIsolated;
@@ -121,6 +124,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     // Concurrency control
     private readonly SemaphoreSlim refreshLock = new(1, 1);
+
     private bool isRefreshPending;
 
     public ObservableCollection<ProcessItemViewModel> Processes { get; } = [];
@@ -152,7 +156,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public MainViewModel() : this(new ProcessService(), new LiteDialogService(), new ImageLoaderService()) { }
+    public MainViewModel() : this(new ProcessService(), new LiteDialogService(), new ImageLoaderService())
+    {
+    }
 
     public MainViewModel(IProcessService processService, ILiteDialogService liteDialogService, IImageLoaderService imageLoaderService)
     {
@@ -190,6 +196,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     partial void OnSearchTextChanged(string value) => Task.Run(RefreshProcessesAsync);
+
     partial void OnIsPausedChanged(bool value)
     {
         if (isPaused) refreshTimer.Stop();
@@ -242,12 +249,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     // Update Tray Tooltip
                     UpdateTrayState(stats);
                 });
-
             } while (isRefreshPending);
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error: {ex.Message}");
+            Log.Error(ex, "Error: {message}", ex.Message);
         }
         finally
         {
@@ -263,7 +269,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             // Use the CAPTURED Pid, not the current selection
             var target = FindProcessInGraph(roots, isolationTargetPid.Value);
 
-            // If the isolated process still exists, show it. 
+            // If the isolated process still exists, show it.
             // If it died, show empty list (or could fallback to full list, but empty is safer for "Isolation")
             return target != null ? [target] : [];
         }
@@ -509,6 +515,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
             catch (Exception ex)
             {
+                Log.Warning(ex, "Ignored");
                 await liteDialogService.ShowAsync(new LiteDialogRequest(
                     title: "Error",
                     message: $"Failed to copy path: {ex.Message}",
@@ -553,7 +560,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             {
                 using var process = Process.GetProcessById(pid);
 
-                // PID Reuse Check: Verify StartTime if possible (requires capturing it earlier, 
+                // PID Reuse Check: Verify StartTime if possible (requires capturing it earlier,
                 // but here we assume short duration between selection and action).
                 // Ideally, ProcessInfo should carry StartTime.
 
@@ -594,6 +601,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
             catch (Exception ex)
             {
+                Log.Warning(ex, "Ignored");
                 await Application.Current.Dispatcher.InvokeAsync(async () =>
                     await liteDialogService.ShowAsync(new LiteDialogRequest(
                         title: "Error",
@@ -608,7 +616,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanExecuteProcessAction))]
     private async Task GracefulEndProcessTreeAsync()
     {
-
         var selected = SelectedProcess;
         if (selected == null) return;
 
@@ -654,7 +661,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     p.Refresh();
                     p.CloseMainWindow();
                 }
-                catch { /* Ignore access denied or already exited */ }
+                catch (Exception ex)
+                {
+                    /* Ignore access denied or already exited */
+                    Log.Warning(ex, "Ignored");
+                }
             }
         });
 
@@ -686,7 +697,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
                         }
                     }
                 }
-                catch { /* Assume exited if cannot access */ }
+                catch (Exception ex)
+                {
+                    /* Assume exited if cannot access */
+                    Log.Warning(ex, "Ignored");
+                }
             }
 
             foreach (var pid in closedPids)
@@ -710,7 +725,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             await Task.Delay(delay * tryNumber);
         }
 
-
         if (remaining.Count > 0)
         {
             if (await liteDialogService.ShowAsync(new LiteDialogRequest(
@@ -732,6 +746,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 }
                 catch (Exception ex)
                 {
+                    Log.Warning(ex, "Ignored");
                     await liteDialogService.ShowAsync(new LiteDialogRequest(
                         title: "Error",
                         message: $"Error terminating tree: {ex.Message}",
@@ -776,6 +791,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
             catch (Exception ex)
             {
+                Log.Warning(ex, "Ignored");
                 await liteDialogService.ShowAsync(new LiteDialogRequest(
                     title: "Error",
                     message: $"Failed to end process: {ex.Message}",
@@ -811,6 +827,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
             catch (Exception ex)
             {
+                Log.Warning(ex, "Ignored");
                 await liteDialogService.ShowAsync(new LiteDialogRequest(
                     title: "Error",
                     message: $"Failed to end process tree: {ex.Message}",
@@ -841,16 +858,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             using var process = Process.GetProcessById(pid);
 
-            // PID Reuse Check: Verify StartTime if possible (requires capturing it earlier, 
+            // PID Reuse Check: Verify StartTime if possible (requires capturing it earlier,
             // but here we assume short duration between selection and action).
             // Ideally, ProcessInfo should carry StartTime.
 
             process.Refresh();
             process.Kill();
         }
-        catch
+        catch (Exception ex)
         {
             // Process may have already exited
+            Log.Warning(ex, "Ignored");
         }
     }
 
@@ -877,9 +895,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
             if (process.MainModule != null)
                 details.AppendLine($"File Path: {process.MainModule.FileName}");
         }
-        catch
+        catch (Exception ex)
         {
             details.AppendLine("\n(Extended details unavailable - Access Denied or Process Exited)");
+            Log.Warning(ex, "(Extended details unavailable - Access Denied or Process Exited)");
         }
 
         if (!string.IsNullOrWhiteSpace(SelectedProcess.Parameters))
@@ -936,6 +955,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
+            Log.Warning(ex, "Ignored");
             await liteDialogService.ShowAsync(new LiteDialogRequest(
                 title: "Error",
                 message: $"Failed to open process directory: {ex.Message}",

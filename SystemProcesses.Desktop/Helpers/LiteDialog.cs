@@ -1,10 +1,13 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+
+using SystemProcesses.Desktop.Services;
 
 namespace SystemProcesses.Desktop.Helpers;
 
@@ -193,7 +196,7 @@ internal sealed class LiteDialogWindow : Window
         txtMessage.Text = request.Message;
         this.Title = request.Title;
 
-        // Icon Logic (Zero-Allocation: Assigning existing static resources)
+        // [Icon Logic - Same as before]
         switch (request.Image)
         {
             case LiteDialogImage.Success: SetIcon(GeoSucess, BrushSuccess); break;
@@ -204,6 +207,7 @@ internal sealed class LiteDialogWindow : Window
             default: iconViewbox.Visibility = Visibility.Collapsed; break;
         }
 
+        // [Button Logic - Same as before]
         btn1.Visibility = Visibility.Collapsed;
         btn2.Visibility = Visibility.Collapsed;
 
@@ -212,16 +216,46 @@ internal sealed class LiteDialogWindow : Window
             case LiteDialogButton.OK:
                 SetupButton(btn2, "OK", LiteDialogResult.OK, true);
                 break;
-
             case LiteDialogButton.OKCancel:
                 SetupButton(btn1, "OK", LiteDialogResult.OK, true);
                 SetupButton(btn2, "Cancel", LiteDialogResult.Cancel, false);
                 break;
-
             case LiteDialogButton.YesNo:
                 SetupButton(btn1, "Yes", LiteDialogResult.Yes, true);
                 SetupButton(btn2, "No", LiteDialogResult.No, false);
                 break;
+        }
+
+        // .........................................................
+        // Manual Centering for Pooled Window
+        // .........................................................
+
+        // 1. Force Layout Update
+        // We must calculate the new size (based on new text) *before* positioning.
+        this.SizeToContent = SizeToContent.WidthAndHeight;
+        this.UpdateLayout();
+
+        // 2. Calculate Position
+        // If ActualWidth is 0, it's the first run; let WindowStartupLocation handle it.
+        // If ActualWidth > 0, it's a reused window; we must manually center it.
+        if (this.ActualWidth > 0)
+        {
+            if (this.Owner != null && this.Owner.IsVisible && this.Owner.WindowState != WindowState.Minimized)
+            {
+                // Center on Owner
+                // Note: This math works even if Owner is Maximized (Left/Top are relative to screen)
+                double l = this.Owner.Left + (this.Owner.ActualWidth - this.ActualWidth) / 2;
+                double t = this.Owner.Top + (this.Owner.ActualHeight - this.ActualHeight) / 2;
+
+                this.Left = l;
+                this.Top = t;
+            }
+            else
+            {
+                // Center on Screen (WorkArea excludes Taskbar)
+                this.Left = (SystemParameters.WorkArea.Width - this.ActualWidth) / 2;
+                this.Top = (SystemParameters.WorkArea.Height - this.ActualHeight) / 2;
+            }
         }
 
         this.ShowDialog();
@@ -267,26 +301,50 @@ public class LiteDialogService : ILiteDialogService
 
     public async ValueTask<LiteDialogResult> ShowAsync(LiteDialogRequest request)
     {
-        // 1. Thread-Safe Locking (Async wait to prevent blocking calling thread)
         await locker.WaitAsync();
 
         try
         {
-            // 2. Switch to UI Thread
             return await uiDispatcher.InvokeAsync(() =>
             {
-                // 3. Lazy Initialization (Created once, reused forever)
                 if (pooledWindow == null)
                 {
                     pooledWindow = new LiteDialogWindow();
-                    // Optional: Set Owner if main window exists
-                    if (Application.Current?.MainWindow != null && Application.Current.MainWindow.IsVisible)
+                }
+
+                // OPTIMIZED: O(1) Lookup via Win32
+                Window? activeOwner = null;
+
+                IntPtr hwnd = NativeMethods.GetActiveWindow();
+                if (hwnd != IntPtr.Zero)
+                {
+                    // Convert HWND back to WPF Window
+                    // This is extremely fast (hashtable lookup internally)
+                    if (System.Windows.Interop.HwndSource.FromHwnd(hwnd)?.RootVisual is Window w)
                     {
-                        pooledWindow.Owner = Application.Current.MainWindow;
+                        // Ensure we don't set the dialog as its own owner
+                        if (w != pooledWindow && w.IsVisible)
+                        {
+                            activeOwner = w;
+                        }
                     }
                 }
 
-                // 4. Show and Return Result
+                // Fallback to MainWindow if OS reports nothing (or we found the dialog itself)
+                activeOwner ??= Application.Current?.MainWindow;
+
+                // Apply Owner & Location
+                if (activeOwner != null && activeOwner.IsVisible)
+                {
+                    pooledWindow.Owner = activeOwner;
+                    pooledWindow.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+                }
+                else
+                {
+                    pooledWindow.Owner = null;
+                    pooledWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+                }
+
                 return pooledWindow.Show(request);
             });
         }

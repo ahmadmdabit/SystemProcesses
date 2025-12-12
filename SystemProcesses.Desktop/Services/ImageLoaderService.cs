@@ -14,9 +14,13 @@ namespace SystemProcesses.Desktop.Services;
 public interface IImageLoaderService
 {
     void ClearCache();
+
     void Dispose();
+
     Task<BitmapSource> LoadAsync(string pathOrUri, int? decodePixelWidth = null, int? decodePixelHeight = null, CancellationToken cancellationToken = default);
+
     bool RemoveFromCache(string key);
+
     bool TryGetFromCache(string key, out BitmapSource bitmap);
 }
 

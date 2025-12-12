@@ -184,7 +184,6 @@
                 ItemsSource="{Binding RefreshIntervals}"
                 SelectedItem="{Binding SelectedRefreshInterval}"
                 ToolTip="Refresh Rate" />
-
         </Grid>
 
         <!--  Process Tree  -->
@@ -322,6 +321,5 @@
                 </HierarchicalDataTemplate>
             </TreeView.Resources>
         </TreeView>
-
     </Grid>
 </Window>

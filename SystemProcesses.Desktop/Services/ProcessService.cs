@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
+using Serilog;
+
 using SystemProcesses.Desktop.Models;
 
 namespace SystemProcesses.Desktop.Services;
@@ -51,13 +53,10 @@ public class ProcessService : IProcessService, IDisposable
 
     private void InitializePdh()
     {
-        Debug.WriteLine("...... PDH DIAGNOSIS START ......");
-
         try
         {
             // 1. Open Query
             int status = NativeMethods.PdhOpenQuery(IntPtr.Zero, IntPtr.Zero, out pdhQuery);
-            Debug.WriteLine($"PdhOpenQuery Result: 0x{status:X8} (0 is Success)");
 
             if (status != 0)
             {
@@ -67,40 +66,28 @@ public class ProcessService : IProcessService, IDisposable
             // 2. Try PhysicalDisk
             const string physPath = "\\PhysicalDisk(_Total)\\% Idle Time";
             status = NativeMethods.PdhAddEnglishCounter(pdhQuery, physPath, IntPtr.Zero, out pdhDiskIdleCounter);
-            Debug.WriteLine($"AddCounter '{physPath}' Result: 0x{status:X8}");
 
             // 3. Fallback to LogicalDisk
             if (status != 0)
             {
                 const string logPath = "\\LogicalDisk(_Total)\\% Idle Time";
                 status = NativeMethods.PdhAddEnglishCounter(pdhQuery, logPath, IntPtr.Zero, out pdhDiskIdleCounter);
-                Debug.WriteLine($"AddCounter '{logPath}' Result: 0x{status:X8}");
             }
 
             // 4. Initial Collect
             if (status == 0)
             {
                 status = NativeMethods.PdhCollectQueryData(pdhQuery);
-                Debug.WriteLine($"Initial Collect Result: 0x{status:X8}");
 
                 if (status == 0)
                 {
                     isPdhInitialized = true;
-                    Debug.WriteLine("PDH Initialized SUCCESSFULLY.");
                 }
-            }
-            else
-            {
-                Debug.WriteLine("PDH Initialization FAILED: Could not add any counters.");
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"PDH CRITICAL EXCEPTION: {ex}");
-        }
-        finally
-        {
-            Debug.WriteLine("...... PDH DIAGNOSIS END ......");
+            Log.Error(ex, "PDH CRITICAL EXCEPTION: {message}", ex.Message);
         }
     }
 
@@ -125,7 +112,7 @@ public class ProcessService : IProcessService, IDisposable
     {
         servicePids.Clear();
         IntPtr scmHandle = NativeMethods.OpenSCManagerW(null, null,
-            NativeMethods.SC_MANAGER_CONNECT | NativeMethods.SC_MANAGER_ENUMERATE_SERVICE);
+            NativeMethods.ScManagerConnect | NativeMethods.ScManagerEnumerateService);
 
         if (scmHandle == IntPtr.Zero)
         {
@@ -140,24 +127,24 @@ public class ProcessService : IProcessService, IDisposable
             int resumeHandle = 0;
 
             // First call to get size
-            NativeMethods.EnumServicesStatusExW(scmHandle, NativeMethods.SC_ENUM_PROCESS_INFO,
-                NativeMethods.SERVICE_WIN32, NativeMethods.SERVICE_STATE_ALL,
+            NativeMethods.EnumServicesStatusExW(scmHandle, NativeMethods.ScEnumProcessInfo,
+                NativeMethods.ServiceWIN32, NativeMethods.ServiceStateAll,
                 IntPtr.Zero, 0, out bytesNeeded, out servicesReturned, ref resumeHandle, null);
 
             if (bytesNeeded > 0)
             {
                 buf = Marshal.AllocHGlobal(bytesNeeded);
-                if (NativeMethods.EnumServicesStatusExW(scmHandle, NativeMethods.SC_ENUM_PROCESS_INFO,
-                    NativeMethods.SERVICE_WIN32, NativeMethods.SERVICE_STATE_ALL,
+                if (NativeMethods.EnumServicesStatusExW(scmHandle, NativeMethods.ScEnumProcessInfo,
+                    NativeMethods.ServiceWIN32, NativeMethods.ServiceStateAll,
                     buf, bytesNeeded, out bytesNeeded, out servicesReturned, ref resumeHandle, null))
                 {
                     byte* ptr = (byte*)buf;
-                    int structSize = Marshal.SizeOf<NativeMethods.ENUM_SERVICE_STATUS_PROCESS>();
+                    int structSize = Marshal.SizeOf<NativeMethods.EnumServiceStatusProcess>();
 
                     for (int i = 0; i < servicesReturned; i++)
                     {
                         // Direct pointer access to avoid full struct marshalling
-                        var serviceStruct = (NativeMethods.ENUM_SERVICE_STATUS_PROCESS*)ptr;
+                        var serviceStruct = (NativeMethods.EnumServiceStatusProcess*)ptr;
                         int pid = serviceStruct->ServiceStatusProcess.dwProcessId;
 
                         if (pid > 0)
@@ -184,18 +171,18 @@ public class ProcessService : IProcessService, IDisposable
     {
         int requiredSize = 0;
         int status = NativeMethods.NtQuerySystemInformation(
-            NativeMethods.SystemProcessInformation,
+            NativeMethods.SystemProcessInformationValue,
             buffer,
             bufferSize,
             out requiredSize);
 
-        if (status == NativeMethods.STATUS_INFO_LENGTH_MISMATCH)
+        if (status == NativeMethods.StatusInfoLengthMismatch)
         {
             Marshal.FreeHGlobal(buffer);
             bufferSize = requiredSize + (1024 * 1024); // Add 1MB padding
             buffer = Marshal.AllocHGlobal(bufferSize);
             status = NativeMethods.NtQuerySystemInformation(
-                NativeMethods.SystemProcessInformation,
+                NativeMethods.SystemProcessInformationValue,
                 buffer,
                 bufferSize,
                 out requiredSize);
@@ -204,7 +191,7 @@ public class ProcessService : IProcessService, IDisposable
         // Initialize Stats
         var stats = new SystemStats();
 
-        if (status != NativeMethods.STATUS_SUCCESS)
+        if (status != NativeMethods.StatusSuccess)
         {
             return stats;
         }
@@ -213,10 +200,10 @@ public class ProcessService : IProcessService, IDisposable
         {
             int collectStatus = NativeMethods.PdhCollectQueryData(pdhQuery);
 
-            NativeMethods.PDH_FMT_COUNTERVALUE value;
+            NativeMethods.PdhFmtCountervalue value;
             int readStatus = NativeMethods.PdhGetFormattedCounterValue(
                 pdhDiskIdleCounter,
-                NativeMethods.PDH_FMT_DOUBLE,
+                NativeMethods.PdhFmtDouble,
                 IntPtr.Zero,
                 out value);
 
@@ -246,7 +233,7 @@ public class ProcessService : IProcessService, IDisposable
             }
         }
 
-        var memStatus = NativeMethods.MEMORYSTATUSEX.Default;
+        var memStatus = NativeMethods.MemoryStatusEx.Default;
         if (NativeMethods.GlobalMemoryStatusEx(ref memStatus))
         {
             stats.TotalPhysicalMemory = (long)memStatus.ullTotalPhys;
@@ -262,13 +249,13 @@ public class ProcessService : IProcessService, IDisposable
 
         currentPidsBuffer.Clear();
         long offset = 0;
-        NativeMethods.SYSTEM_PROCESS_INFORMATION* ptr;
+        NativeMethods.SystemProcessInformation* ptr;
 
         long globalIoDelta = 0;
 
         do
         {
-            ptr = (NativeMethods.SYSTEM_PROCESS_INFORMATION*)((byte*)buffer + offset);
+            ptr = (NativeMethods.SystemProcessInformation*)((byte*)buffer + offset);
             int pid = ptr->UniqueProcessId.ToInt32();
             currentPidsBuffer.Add(pid);
 
@@ -484,7 +471,7 @@ public class ProcessService : IProcessService, IDisposable
         }
 
         IntPtr hProcess = NativeMethods.OpenProcess(
-            NativeMethods.PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+            NativeMethods.ProcessQueryLimitedInformation, false, pid);
 
         if (hProcess == IntPtr.Zero)
         {
@@ -509,10 +496,10 @@ public class ProcessService : IProcessService, IDisposable
                 int status = NativeMethods.NtQueryInformationProcess(hProcess,
                     NativeMethods.ProcessCommandLineInformation, buffer, bufferSize, out _);
 
-                if (status == NativeMethods.STATUS_SUCCESS)
+                if (status == NativeMethods.StatusSuccess)
                 {
                     // Read UNICODE_STRING
-                    var unicodeString = Marshal.PtrToStructure<NativeMethods.UNICODE_STRING>(buffer);
+                    var unicodeString = Marshal.PtrToStructure<NativeMethods.UnicodeString>(buffer);
                     if (unicodeString.Buffer != IntPtr.Zero && unicodeString.Length > 0)
                     {
                         return Marshal.PtrToStringUni(unicodeString.Buffer) ?? string.Empty;
@@ -524,9 +511,10 @@ public class ProcessService : IProcessService, IDisposable
                 Marshal.FreeHGlobal(buffer);
             }
         }
-        catch
+        catch (Exception ex)
         {
             // Ignore exceptions
+            Log.Warning(ex, "Ignored");
         }
         finally
         {
@@ -545,8 +533,9 @@ public class ProcessService : IProcessService, IDisposable
             using var p = Process.GetProcessById(pid);
             return p.MainModule?.FileName;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning(ex, "Ignored");
             return null;
         }
     }

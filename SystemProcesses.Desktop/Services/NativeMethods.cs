@@ -10,15 +10,15 @@ namespace SystemProcesses.Desktop.Services;
 internal static partial class NativeMethods
 {
     // NTSTATUS constants
-    public const int STATUS_SUCCESS = 0x00000000;
+    public const int StatusSuccess = 0x00000000;
 
-    public const int STATUS_INFO_LENGTH_MISMATCH = unchecked((int)0xC0000004);
+    public const int StatusInfoLengthMismatch = unchecked((int)0xC0000004);
 
     // SystemInformationClass
-    public const int SystemProcessInformation = 5;
+    public const int SystemProcessInformationValue = 5;
 
     // ProcessAccessFlags
-    public const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    public const uint ProcessQueryLimitedInformation = 0x1000;
 
     // ProcessInformationClass
     public const int ProcessCommandLineInformation = 60;
@@ -50,12 +50,12 @@ internal static partial class NativeMethods
     public static partial bool CloseHandle(IntPtr hObject);
 
     // Service Enumeration
-    public const int SC_MANAGER_CONNECT = 0x0001;
+    public const int ScManagerConnect = 0x0001;
 
-    public const int SC_MANAGER_ENUMERATE_SERVICE = 0x0004;
-    public const int SC_ENUM_PROCESS_INFO = 0;
-    public const int SERVICE_WIN32 = 0x00000030;
-    public const int SERVICE_STATE_ALL = 0x00000003;
+    public const int ScManagerEnumerateService = 0x0004;
+    public const int ScEnumProcessInfo = 0;
+    public const int ServiceWIN32 = 0x00000030;
+    public const int ServiceStateAll = 0x00000003;
 
     [LibraryImport("advapi32.dll", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
     public static partial IntPtr OpenSCManagerW(
@@ -83,10 +83,17 @@ internal static partial class NativeMethods
 
     [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    public static partial bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX lpBuffer);
+    public static partial bool GlobalMemoryStatusEx(ref MemoryStatusEx lpBuffer);
+
+    /// <summary>
+    /// Retrieves the window handle to the active window attached to the calling thread's message queue.
+    /// </summary>
+    /// <returns>The handle to the active window or NULL.</returns>
+    [LibraryImport("user32.dll", EntryPoint = "GetActiveWindow")]
+    internal static partial IntPtr GetActiveWindow();
 
     // ...... PDH (Performance Data Helper) for Disk % ......
-    public const uint PDH_FMT_DOUBLE = 0x00000200;
+    public const uint PdhFmtDouble = 0x00000200;
 
     // FIX: Added EntryPoint = "PdhOpenQueryW"
     [LibraryImport("pdh.dll", EntryPoint = "PdhOpenQueryW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
@@ -102,14 +109,14 @@ internal static partial class NativeMethods
 
     // FIX: Added EntryPoint = "PdhGetFormattedCounterValue"
     [LibraryImport("pdh.dll", EntryPoint = "PdhGetFormattedCounterValue", SetLastError = true)]
-    public static partial int PdhGetFormattedCounterValue(IntPtr hCounter, uint dwFormat, IntPtr lpdwType, out PDH_FMT_COUNTERVALUE pValue);
+    public static partial int PdhGetFormattedCounterValue(IntPtr hCounter, uint dwFormat, IntPtr lpdwType, out PdhFmtCountervalue pValue);
 
     // FIX: Added EntryPoint = "PdhCloseQuery"
     [LibraryImport("pdh.dll", EntryPoint = "PdhCloseQuery", SetLastError = true)]
     public static partial int PdhCloseQuery(IntPtr hQuery);
 
     [StructLayout(LayoutKind.Explicit)]
-    public struct PDH_FMT_COUNTERVALUE
+    public struct PdhFmtCountervalue
     {
         [FieldOffset(0)] public uint CStatus;
         [FieldOffset(8)] public double doubleValue;
@@ -117,7 +124,7 @@ internal static partial class NativeMethods
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct MEMORYSTATUSEX
+    public struct MemoryStatusEx
     {
         public uint dwLength;
         public uint dwMemoryLoad;
@@ -129,11 +136,11 @@ internal static partial class NativeMethods
         public ulong ullAvailVirtual;
         public ulong ullAvailExtendedVirtual;
 
-        public static MEMORYSTATUSEX Default => new() { dwLength = (uint)Marshal.SizeOf<MEMORYSTATUSEX>() };
+        public static MemoryStatusEx Default => new() { dwLength = (uint)Marshal.SizeOf<MemoryStatusEx>() };
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct UNICODE_STRING
+    public struct UnicodeString
     {
         public ushort Length;
         public ushort MaximumLength;
@@ -143,7 +150,7 @@ internal static partial class NativeMethods
     // Defined as a struct for pointer arithmetic, fields aligned manually if needed.
     // On x64, alignment is usually 8 bytes.
     [StructLayout(LayoutKind.Sequential)]
-    public struct SYSTEM_PROCESS_INFORMATION
+    public struct SystemProcessInformation
     {
         public uint NextEntryOffset;
         public uint NumberOfThreads;
@@ -154,7 +161,7 @@ internal static partial class NativeMethods
         public long CreateTime;
         public long UserTime;
         public long KernelTime;
-        public UNICODE_STRING ImageName;
+        public UnicodeString ImageName;
         public int BasePriority;
         public IntPtr UniqueProcessId;
         public IntPtr InheritedFromUniqueProcessId;
@@ -182,15 +189,15 @@ internal static partial class NativeMethods
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    public struct ENUM_SERVICE_STATUS_PROCESS
+    public struct EnumServiceStatusProcess
     {
         public IntPtr lpServiceName;
         public IntPtr lpDisplayName;
-        public SERVICE_STATUS_PROCESS ServiceStatusProcess;
+        public ServiceStatusProcess ServiceStatusProcess;
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct SERVICE_STATUS_PROCESS
+    public struct ServiceStatusProcess
     {
         public int dwServiceType;
         public int dwCurrentState;
