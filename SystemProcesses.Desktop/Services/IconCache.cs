@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Threading;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -13,16 +14,16 @@ namespace SystemProcesses.Desktop.Services;
 /// </summary>
 public static class IconCache
 {
-    private static readonly Dictionary<string, ImageSource> _cache = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly object _lock = new();
+    private static readonly Dictionary<string, ImageSource> cache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Lock locker = new();
 
     public static ImageSource? GetIcon(string? processPath)
     {
         if (string.IsNullOrEmpty(processPath)) return null;
 
-        lock (_lock)
+        lock (locker)
         {
-            if (_cache.TryGetValue(processPath, out var cachedIcon))
+            if (cache.TryGetValue(processPath, out var cachedIcon))
             {
                 return cachedIcon;
             }
@@ -41,14 +42,15 @@ public static class IconCache
 
             imageSource.Freeze(); // Essential for cross-thread access
 
-            lock (_lock)
+            lock (locker)
             {
                 // Double-check locking
-                if (!_cache.ContainsKey(processPath))
+                if (!cache.TryGetValue(processPath, out ImageSource? value))
                 {
-                    _cache[processPath] = imageSource;
+                    value = imageSource;
+                    cache[processPath] = value;
                 }
-                return _cache[processPath];
+                return value;
             }
         }
         catch

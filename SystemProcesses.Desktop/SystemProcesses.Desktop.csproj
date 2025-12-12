@@ -9,7 +9,7 @@
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<Platforms>AnyCPU;x64;x86</Platforms>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-		<ApplicationIcon>Resources\SystemProcess.ico</ApplicationIcon>
+		<ApplicationIcon>Resources\Images\AppIcon\SystemProcess.ico</ApplicationIcon>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -18,18 +18,230 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-00.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-01.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-02.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-03.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-04.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-05.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-06.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-07.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-08.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-09.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-10.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-100.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-11.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-12.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-13.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-14.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-15.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-16.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-17.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-18.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-19.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-20.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-21.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-22.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-23.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-24.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-25.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-26.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-27.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-28.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-29.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-30.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-31.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-32.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-33.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-34.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-35.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-36.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-37.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-38.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-39.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-40.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-41.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-42.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-43.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-44.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-45.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-46.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-47.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-48.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-49.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-50.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-51.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-52.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-53.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-54.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-55.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-56.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-57.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-58.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-59.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-60.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-61.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-62.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-63.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-64.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-65.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-66.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-67.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-68.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-69.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-70.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-71.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-72.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-73.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-74.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-75.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-76.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-77.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-78.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-79.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-80.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-81.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-82.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-83.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-84.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-85.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-86.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-87.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-88.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-89.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-90.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-91.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-92.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-93.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-94.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-95.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-96.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-97.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-98.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray-99.ico" />
+	  <None Remove="Resources\Images\TrayIcon\SystemProcess-Tray.ico" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 		<PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0" />
 		<PackageReference Include="H.NotifyIcon.Wpf" Version="2.3.2" />
 		<PackageReference Include="Microsoft.Extensions.ObjectPool" Version="10.0.1" />
+		<PackageReference Include="Serilog" Version="4.3.0" />
+		<PackageReference Include="Serilog.Enrichers.Process" Version="3.0.0" />
+		<PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0" />
+		<PackageReference Include="Serilog.Sinks.Async" Version="2.1.0" />
+		<PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
 		<PackageReference Include="System.Drawing.Common" Version="10.0.1" />
-		<PackageReference Include="System.Management" Version="9.0.0" />
-		<PackageReference Include="System.ServiceProcess.ServiceController" Version="9.0.0" />
+		<PackageReference Include="System.Management" Version="10.0.1" />
+		<PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.1" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<Resource Include="Resources\SystemProcess.ico" />
-		<Resource Include="Resources\SystemProcess.png">
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-00.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-01.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-02.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-03.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-04.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-05.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-06.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-07.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-08.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-09.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-10.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-100.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-11.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-12.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-13.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-14.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-15.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-16.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-17.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-18.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-19.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-20.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-21.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-22.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-23.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-24.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-25.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-26.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-27.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-28.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-29.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-30.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-31.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-32.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-33.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-34.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-35.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-36.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-37.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-38.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-39.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-40.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-41.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-42.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-43.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-44.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-45.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-46.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-47.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-48.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-49.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-50.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-51.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-52.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-53.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-54.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-55.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-56.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-57.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-58.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-59.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-60.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-61.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-62.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-63.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-64.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-65.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-66.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-67.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-68.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-69.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-70.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-71.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-72.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-73.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-74.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-75.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-76.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-77.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-78.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-79.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-80.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-81.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-82.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-83.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-84.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-85.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-86.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-87.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-88.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-89.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-90.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-91.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-92.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-93.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-94.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-95.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-96.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-97.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-98.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray-99.ico" />
+		<Resource Include="Resources\Images\TrayIcon\SystemProcess-Tray.ico" />
+		<Resource Include="Resources\Images\AppIcon\SystemProcess.ico" />
+		<Resource Include="Resources\Images\AppIcon\SystemProcess.png">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</Resource>
 	</ItemGroup>

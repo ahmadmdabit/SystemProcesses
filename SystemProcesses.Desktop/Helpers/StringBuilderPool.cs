@@ -1,15 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-using System;
 using System.Text;
 
 using Microsoft.Extensions.ObjectPool;
 
-namespace SystemProcesses.Desktop.Utils;
+namespace SystemProcesses.Desktop.Helpers;
 
 /// <summary>
 /// Policy that creates and resets StringBuilder instances.
@@ -23,13 +17,14 @@ public sealed class StringBuilderPooledObjectPolicy : IPooledObjectPolicy<String
 
     public StringBuilderPooledObjectPolicy(int defaultCapacity = 256, int maxBuilderCapacity = 1 << 16)
     {
-        if (defaultCapacity <= 0) throw new ArgumentOutOfRangeException(nameof(defaultCapacity));
-        if (maxBuilderCapacity < defaultCapacity) throw new ArgumentOutOfRangeException(nameof(maxBuilderCapacity));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(defaultCapacity);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxBuilderCapacity, defaultCapacity);
+
         DefaultCapacity = defaultCapacity;
         MaxBuilderCapacity = maxBuilderCapacity;
     }
 
-    public StringBuilder Create() => new StringBuilder(DefaultCapacity);
+    public StringBuilder Create() => new(DefaultCapacity);
 
     /// <summary>
     /// Reset builder and decide whether to return to pool.
@@ -37,7 +32,10 @@ public sealed class StringBuilderPooledObjectPolicy : IPooledObjectPolicy<String
     /// </summary>
     public bool Return(StringBuilder obj)
     {
-        if (obj == null) return false;
+        if (obj == null)
+        {
+            return false;
+        }
 
         // Clear content
         obj.Clear();
@@ -71,19 +69,19 @@ public static class StringBuilderPool
     private const int MaxRetainedBuilders = 32;    // how many builders DefaultObjectPool will keep per-thread bucket
     private const int MaxBuilderCapacity = 1 << 16; // 65,536 chars max to retain
 
-    private static readonly ObjectPool<StringBuilder> s_pool;
+    private static readonly ObjectPool<StringBuilder> sbPool;
 
     static StringBuilderPool()
     {
         var policy = new StringBuilderPooledObjectPolicy(DefaultCapacity, MaxBuilderCapacity);
         // DefaultObjectPool is fast and thread-safe. MaxRetained controls contention vs memory.
-        s_pool = new DefaultObjectPool<StringBuilder>(policy, MaxRetainedBuilders);
+        sbPool = new DefaultObjectPool<StringBuilder>(policy, MaxRetainedBuilders);
     }
 
     /// <summary>
     /// Rent a pooled builder wrapped in a struct that will return it on Dispose().
     /// </summary>
-    public static PooledStringBuilder Rent() => new PooledStringBuilder(s_pool.Get(), s_pool);
+    public static PooledStringBuilder Rent() => new(sbPool.Get(), sbPool);
 
     /// <summary>
     /// Convenience: rent and pre-append a string.
@@ -92,7 +90,10 @@ public static class StringBuilderPool
     {
         var psb = Rent();
         if (!string.IsNullOrEmpty(initial))
+        {
             psb.Builder.Append(initial);
+        }
+
         return psb;
     }
 
@@ -102,14 +103,14 @@ public static class StringBuilderPool
     /// </summary>
     public readonly struct PooledStringBuilder : IDisposable
     {
-        private readonly StringBuilder? _builder;
-        private readonly ObjectPool<StringBuilder>? _pool;
-        internal StringBuilder Builder => _builder ?? throw new ObjectDisposedException(nameof(PooledStringBuilder));
+        private readonly StringBuilder? builder;
+        private readonly ObjectPool<StringBuilder>? pool;
+        internal StringBuilder Builder => builder ?? throw new ObjectDisposedException(nameof(PooledStringBuilder));
 
         internal PooledStringBuilder(StringBuilder builder, ObjectPool<StringBuilder> pool)
         {
-            _builder = builder;
-            _pool = pool;
+            this.builder = builder;
+            this.pool = pool;
         }
 
         /// <summary>
@@ -144,11 +145,14 @@ public static class StringBuilderPool
         public void Dispose()
         {
             // Nothing to do if already returned
-            if (_builder == null) return;
+            if (this.builder == null)
+            {
+                return;
+            }
 
             // Get local copies (struct is readonly, but fields are readonly reference)
-            var builder = _builder;
-            var pool = _pool;
+            var builder = this.builder;
+            var pool = this.pool;
 
             // Return to pool (policy will Clear and check capacity). If pool is null, just let GC collect.
             pool?.Return(builder);

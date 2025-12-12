@@ -11,6 +11,7 @@ internal static partial class NativeMethods
 {
     // NTSTATUS constants
     public const int STATUS_SUCCESS = 0x00000000;
+
     public const int STATUS_INFO_LENGTH_MISMATCH = unchecked((int)0xC0000004);
 
     // SystemInformationClass
@@ -50,6 +51,7 @@ internal static partial class NativeMethods
 
     // Service Enumeration
     public const int SC_MANAGER_CONNECT = 0x0001;
+
     public const int SC_MANAGER_ENUMERATE_SERVICE = 0x0004;
     public const int SC_ENUM_PROCESS_INFO = 0;
     public const int SERVICE_WIN32 = 0x00000030;
@@ -83,7 +85,7 @@ internal static partial class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX lpBuffer);
 
-    // --- PDH (Performance Data Helper) for Disk % ---
+    // ...... PDH (Performance Data Helper) for Disk % ......
     public const uint PDH_FMT_DOUBLE = 0x00000200;
 
     // FIX: Added EntryPoint = "PdhOpenQueryW"

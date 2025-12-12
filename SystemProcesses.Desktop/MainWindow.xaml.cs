@@ -1,6 +1,9 @@
+using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 
+using SystemProcesses.Desktop.Helpers;
 using SystemProcesses.Desktop.ViewModels;
 
 namespace SystemProcesses.Desktop;
@@ -12,8 +15,12 @@ public partial class MainWindow : Window
     public static readonly DependencyProperty TreeViewRowWidthProperty =
         DependencyProperty.Register(nameof(TreeViewRowWidth), typeof(double), typeof(MainWindow), new PropertyMetadata(0.0));
 
+    public readonly ILiteDialogService liteDialogService;
+
     public MainWindow()
     {
+        liteDialogService = new LiteDialogService();
+
         InitializeComponent();
     }
 
@@ -52,5 +59,21 @@ public partial class MainWindow : Window
     private void uiRootStateChanged(object sender, System.EventArgs e)
     {
         ShowInTaskbar = WindowState != WindowState.Minimized;
+    }
+
+    private void uiRootClosing(object sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            // 1. If already confirmed (by Tray or previous check), let it close.
+            if (vm.IsExitConfirmed) return;
+
+            // 2. Otherwise, CANCEL the immediate close.
+            e.Cancel = true;
+
+            // 3. Execute the exit application command.
+            // Note: Because we cancelled, the window stays open while this runs.
+            vm.ExitApplicationCommand.ExecuteAsync(null);
+        }
     }
 }

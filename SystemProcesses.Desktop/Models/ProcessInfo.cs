@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace SystemProcesses.Desktop.Models;
 
@@ -32,7 +32,7 @@ public class ProcessInfo
     public int HandleCount { get; set; }
 
     // Initialized once, reused forever.
-    public List<ProcessInfo> Children { get; } = new List<ProcessInfo>();
+    public List<ProcessInfo> Children { get; } = [];
 
     // Helper for differential updates
     public void Update(double cpu, long mem, long virtualMem, int threads, int handles)

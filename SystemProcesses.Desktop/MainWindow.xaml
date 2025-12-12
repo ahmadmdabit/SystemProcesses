@@ -10,7 +10,8 @@
     Title="System Processes"
     Width="960"
     Height="500"
-    Icon="/Resources/SystemProcess.png"
+    Closing="uiRootClosing"
+    Icon="/Resources/Images/AppIcon/SystemProcess.png"
     StateChanged="uiRootStateChanged"
     WindowStartupLocation="CenterScreen"
     mc:Ignorable="d">
@@ -31,10 +32,12 @@
 
         <!--  Note: IconSource points to the .ico file in Resources  -->
         <tb:TaskbarIcon
+            x:Name="uiTrayTaskbarIcon"
             DoubleClickCommand="{Binding ShowApplicationCommand}"
-            IconSource="/Resources/SystemProcess.ico"
+            IconSource="{Binding CpuTrayIconImageSource}"
             MenuActivation="RightClick"
             ToolTipText="System Processes">
+
             <tb:TaskbarIcon.ContextMenu>
                 <ContextMenu>
                     <MenuItem Command="{Binding ShowApplicationCommand}" Header="Show" />
@@ -212,8 +215,12 @@
                                 <MenuItem Command="{Binding PlacementTarget.Tag.GracefulEndProcessCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="Graceful End" />
                                 <MenuItem Command="{Binding PlacementTarget.Tag.GracefulEndProcessTreeCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="Graceful End Tree" />
                                 <MenuItem Command="{Binding PlacementTarget.Tag.EndProcessCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="End" />
-                                <MenuItem Command="{Binding PlacementTarget.Tag.EndProcessTreeCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="End Tree" />
                                 <MenuItem
+                                    Margin="0,0,0,5"
+                                    Command="{Binding PlacementTarget.Tag.EndProcessTreeCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                    Header="End Tree" />
+                                <MenuItem
+                                    Margin="0,0,0,5"
                                     Header="Isolate Tree"
                                     IsCheckable="True"
                                     IsChecked="{Binding PlacementTarget.Tag.IsTreeIsolated, RelativeSource={RelativeSource AncestorType=ContextMenu}, Mode=TwoWay}" />

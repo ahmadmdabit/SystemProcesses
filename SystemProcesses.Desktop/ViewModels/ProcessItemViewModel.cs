@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using System.Windows.Media;
 
@@ -12,19 +12,19 @@ namespace SystemProcesses.Desktop.ViewModels;
 public partial class ProcessItemViewModel : ObservableObject
 {
     [ObservableProperty]
-    private bool _isExpanded;
+    private bool isExpanded;
 
     [ObservableProperty]
-    private bool _isSelected;
+    private bool isSelected;
 
     [ObservableProperty]
-    private ImageSource? _icon;
+    private ImageSource? icon;
 
     [ObservableProperty]
-    private int _depth;
+    private int depth;
 
     public ProcessInfo ProcessInfo { get; }
-    public ObservableCollection<ProcessItemViewModel> Children { get; } = new();
+    public ObservableCollection<ProcessItemViewModel> Children { get; } = [];
 
     public int Pid => ProcessInfo.Pid;
     public string PidText => ProcessInfo.PidText;
@@ -34,6 +34,7 @@ public partial class ProcessItemViewModel : ObservableObject
 
     // Properties that change frequently
     public double CpuPercentage => ProcessInfo.CpuPercentage;
+
     public long MemoryBytes => ProcessInfo.MemoryBytes;
     public long VirtualMemoryBytes => ProcessInfo.VirtualMemoryBytes;
 

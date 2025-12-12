@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -16,69 +16,76 @@ public class ProcessService : IProcessService, IDisposable
         public long TotalIoBytes;
     }
 
-    private readonly Dictionary<int, ProcessInfo> _activeProcesses = new(1024);
-    private readonly Dictionary<int, ProcessHistory> _prevProcessStats = new(1024);
-    private readonly List<ProcessInfo> _rootNodes = new(64);
-    private readonly HashSet<int> _servicePids = new();
+    private readonly Dictionary<int, ProcessInfo> activeProcesses = new(1024);
+    private readonly Dictionary<int, ProcessHistory> prevProcessStats = new(1024);
+    private readonly List<ProcessInfo> rootNodes = new(64);
+    private readonly HashSet<int> servicePids = [];
 
     // Reusable buffers
-    private readonly HashSet<int> _currentPidsBuffer = new(1024);
-    private readonly List<int> _deadPidsBuffer = new(64);
-    private readonly ProcessInfo?[] _top5Buffer = new ProcessInfo?[5];
+    private readonly HashSet<int> currentPidsBuffer = new(1024);
+
+    private readonly List<int> stoppedPidsBuffer = new(64);
+    private readonly ProcessInfo?[] top5Buffer = new ProcessInfo?[5];
 
     // Reusable buffer for NtQuerySystemInformation
-    private IntPtr _buffer = IntPtr.Zero;
-    private int _bufferSize = 1024 * 1024;
-    private long _prevTicks = 0;
+    private IntPtr buffer = IntPtr.Zero;
+
+    private int bufferSize = 1024 * 1024;
+    private long prevTicks = 0;
+
     // PDH Fields
-    private IntPtr _pdhQuery = IntPtr.Zero;
-    private IntPtr _pdhDiskIdleCounter = IntPtr.Zero;
-    private bool _isPdhInitialized = false;
+    private IntPtr pdhQuery = IntPtr.Zero;
+
+    private IntPtr pdhDiskIdleCounter = IntPtr.Zero;
+    private bool isPdhInitialized = false;
 
     // Reusable comparison delegate to avoid allocation
-    private static readonly Comparison<ProcessInfo> _nameComparer =
+    private static readonly Comparison<ProcessInfo> nameComparer =
         (a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
 
     public ProcessService()
     {
-        _buffer = Marshal.AllocHGlobal(_bufferSize);
+        buffer = Marshal.AllocHGlobal(bufferSize);
         InitializePdh();
     }
 
     private void InitializePdh()
     {
-        Debug.WriteLine("--- PDH DIAGNOSIS START ---");
+        Debug.WriteLine("...... PDH DIAGNOSIS START ......");
 
         try
         {
             // 1. Open Query
-            int status = NativeMethods.PdhOpenQuery(IntPtr.Zero, IntPtr.Zero, out _pdhQuery);
+            int status = NativeMethods.PdhOpenQuery(IntPtr.Zero, IntPtr.Zero, out pdhQuery);
             Debug.WriteLine($"PdhOpenQuery Result: 0x{status:X8} (0 is Success)");
 
-            if (status != 0) return;
+            if (status != 0)
+            {
+                return;
+            }
 
             // 2. Try PhysicalDisk
-            string physPath = "\\PhysicalDisk(_Total)\\% Idle Time";
-            status = NativeMethods.PdhAddEnglishCounter(_pdhQuery, physPath, IntPtr.Zero, out _pdhDiskIdleCounter);
+            const string physPath = "\\PhysicalDisk(_Total)\\% Idle Time";
+            status = NativeMethods.PdhAddEnglishCounter(pdhQuery, physPath, IntPtr.Zero, out pdhDiskIdleCounter);
             Debug.WriteLine($"AddCounter '{physPath}' Result: 0x{status:X8}");
 
             // 3. Fallback to LogicalDisk
             if (status != 0)
             {
-                string logPath = "\\LogicalDisk(_Total)\\% Idle Time";
-                status = NativeMethods.PdhAddEnglishCounter(_pdhQuery, logPath, IntPtr.Zero, out _pdhDiskIdleCounter);
+                const string logPath = "\\LogicalDisk(_Total)\\% Idle Time";
+                status = NativeMethods.PdhAddEnglishCounter(pdhQuery, logPath, IntPtr.Zero, out pdhDiskIdleCounter);
                 Debug.WriteLine($"AddCounter '{logPath}' Result: 0x{status:X8}");
             }
 
             // 4. Initial Collect
             if (status == 0)
             {
-                status = NativeMethods.PdhCollectQueryData(_pdhQuery);
+                status = NativeMethods.PdhCollectQueryData(pdhQuery);
                 Debug.WriteLine($"Initial Collect Result: 0x{status:X8}");
 
                 if (status == 0)
                 {
-                    _isPdhInitialized = true;
+                    isPdhInitialized = true;
                     Debug.WriteLine("PDH Initialized SUCCESSFULLY.");
                 }
             }
@@ -93,34 +100,37 @@ public class ProcessService : IProcessService, IDisposable
         }
         finally
         {
-            Debug.WriteLine("--- PDH DIAGNOSIS END ---");
+            Debug.WriteLine("...... PDH DIAGNOSIS END ......");
         }
     }
 
     public async Task<(List<ProcessInfo> Roots, SystemStats Stats)> GetProcessTreeAsync()
     {
-        // We return the raw list to avoid allocation. 
+        // We return the raw list to avoid allocation.
         // The consumer MUST NOT iterate this list concurrently with the next call to GetProcessTreeAsync.
         // Given the UI "pull" model, this is safe.
         return await Task.Run(() =>
         {
-            lock (_activeProcesses)
+            lock (activeProcesses)
             {
                 RefreshServicePids();
                 var stats = UpdateProcessSnapshot();
                 RebuildTreeStructure();
-                return (_rootNodes, stats);
+                return (rootNodes, stats);
             }
         });
     }
 
     private unsafe void RefreshServicePids()
     {
-        _servicePids.Clear();
+        servicePids.Clear();
         IntPtr scmHandle = NativeMethods.OpenSCManagerW(null, null,
             NativeMethods.SC_MANAGER_CONNECT | NativeMethods.SC_MANAGER_ENUMERATE_SERVICE);
 
-        if (scmHandle == IntPtr.Zero) return;
+        if (scmHandle == IntPtr.Zero)
+        {
+            return;
+        }
 
         IntPtr buf = IntPtr.Zero;
         try
@@ -152,7 +162,7 @@ public class ProcessService : IProcessService, IDisposable
 
                         if (pid > 0)
                         {
-                            _servicePids.Add(pid);
+                            servicePids.Add(pid);
                         }
                         ptr += structSize;
                     }
@@ -161,7 +171,11 @@ public class ProcessService : IProcessService, IDisposable
         }
         finally
         {
-            if (buf != IntPtr.Zero) Marshal.FreeHGlobal(buf);
+            if (buf != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(buf);
+            }
+
             NativeMethods.CloseServiceHandle(scmHandle);
         }
     }
@@ -171,34 +185,37 @@ public class ProcessService : IProcessService, IDisposable
         int requiredSize = 0;
         int status = NativeMethods.NtQuerySystemInformation(
             NativeMethods.SystemProcessInformation,
-            _buffer,
-            _bufferSize,
+            buffer,
+            bufferSize,
             out requiredSize);
 
         if (status == NativeMethods.STATUS_INFO_LENGTH_MISMATCH)
         {
-            Marshal.FreeHGlobal(_buffer);
-            _bufferSize = requiredSize + (1024 * 1024); // Add 1MB padding
-            _buffer = Marshal.AllocHGlobal(_bufferSize);
+            Marshal.FreeHGlobal(buffer);
+            bufferSize = requiredSize + (1024 * 1024); // Add 1MB padding
+            buffer = Marshal.AllocHGlobal(bufferSize);
             status = NativeMethods.NtQuerySystemInformation(
                 NativeMethods.SystemProcessInformation,
-                _buffer,
-                _bufferSize,
+                buffer,
+                bufferSize,
                 out requiredSize);
         }
 
         // Initialize Stats
         var stats = new SystemStats();
 
-        if (status != NativeMethods.STATUS_SUCCESS) return stats;
-
-        if (_isPdhInitialized)
+        if (status != NativeMethods.STATUS_SUCCESS)
         {
-            int collectStatus = NativeMethods.PdhCollectQueryData(_pdhQuery);
+            return stats;
+        }
+
+        if (isPdhInitialized)
+        {
+            int collectStatus = NativeMethods.PdhCollectQueryData(pdhQuery);
 
             NativeMethods.PDH_FMT_COUNTERVALUE value;
             int readStatus = NativeMethods.PdhGetFormattedCounterValue(
-                _pdhDiskIdleCounter,
+                pdhDiskIdleCounter,
                 NativeMethods.PDH_FMT_DOUBLE,
                 IntPtr.Zero,
                 out value);
@@ -210,8 +227,15 @@ public class ProcessService : IProcessService, IDisposable
 
                 // Debug.WriteLine($"Raw Idle: {idle:F2}%"); // Uncomment to see raw values
 
-                if (idle > 100) idle = 100;
-                if (idle < 0) idle = 0;
+                if (idle > 100)
+                {
+                    idle = 100;
+                }
+
+                if (idle < 0)
+                {
+                    idle = 0;
+                }
 
                 stats.DiskActivePercent = 100.0 - idle;
             }
@@ -232,11 +256,11 @@ public class ProcessService : IProcessService, IDisposable
         }
 
         long currentTicks = DateTime.UtcNow.Ticks;
-        double deltaTime = (currentTicks - _prevTicks);
+        double deltaTime = (currentTicks - prevTicks);
         double deltaTimeSec = deltaTime / 10_000_000.0; // Ticks are 100ns
-        _prevTicks = currentTicks;
+        prevTicks = currentTicks;
 
-        _currentPidsBuffer.Clear();
+        currentPidsBuffer.Clear();
         long offset = 0;
         NativeMethods.SYSTEM_PROCESS_INFORMATION* ptr;
 
@@ -244,9 +268,9 @@ public class ProcessService : IProcessService, IDisposable
 
         do
         {
-            ptr = (NativeMethods.SYSTEM_PROCESS_INFORMATION*)((byte*)_buffer + offset);
+            ptr = (NativeMethods.SYSTEM_PROCESS_INFORMATION*)((byte*)buffer + offset);
             int pid = ptr->UniqueProcessId.ToInt32();
-            _currentPidsBuffer.Add(pid);
+            currentPidsBuffer.Add(pid);
 
             // Extract Data
             long totalCpuTime = ptr->KernelTime + ptr->UserTime;
@@ -263,7 +287,7 @@ public class ProcessService : IProcessService, IDisposable
             double cpuUsage = 0;
             long ioDelta = 0;
 
-            if (_prevProcessStats.TryGetValue(pid, out var history) && deltaTime > 0)
+            if (prevProcessStats.TryGetValue(pid, out var history) && deltaTime > 0)
             {
                 // CPU
                 long deltaCpu = totalCpuTime - history.TotalProcessorTime;
@@ -278,7 +302,7 @@ public class ProcessService : IProcessService, IDisposable
             }
 
             // Update History
-            _prevProcessStats[pid] = new ProcessHistory
+            prevProcessStats[pid] = new ProcessHistory
             {
                 TotalProcessorTime = totalCpuTime,
                 TotalIoBytes = currentIoBytes
@@ -298,9 +322,9 @@ public class ProcessService : IProcessService, IDisposable
 
             // Check if service
             // Update/Add ProcessInfo (Include PID 0 here so it shows in the Tree)
-            bool isService = _servicePids.Contains(pid);
+            bool isService = servicePids.Contains(pid);
 
-            if (_activeProcesses.TryGetValue(pid, out var info))
+            if (activeProcesses.TryGetValue(pid, out var info))
             {
                 // UPDATE existing (Zero Alloc)
                 info.Update(cpuUsage, memBytes, virtualBytes, threads, handles);
@@ -310,8 +334,14 @@ public class ProcessService : IProcessService, IDisposable
             else
             {
                 string name;
-                if (pid == 0) name = "System Idle Process";
-                else if (pid == 4) name = "System";
+                if (pid == 0)
+                {
+                    name = "System Idle Process";
+                }
+                else if (pid == 4)
+                {
+                    name = "System";
+                }
                 else
                 {
                     // Zero-alloc string creation if possible, but we need a string for WPF.
@@ -329,12 +359,15 @@ public class ProcessService : IProcessService, IDisposable
                     Parameters = GetCommandLine(pid) // Fetch once
                 };
                 newInfo.Update(cpuUsage, memBytes, virtualBytes, threads, handles);
-                _activeProcesses.Add(pid, newInfo);
+                activeProcesses.Add(pid, newInfo);
             }
 
-            if (ptr->NextEntryOffset == 0) break;
-            offset += ptr->NextEntryOffset;
+            if (ptr->NextEntryOffset == 0)
+            {
+                break;
+            }
 
+            offset += ptr->NextEntryOffset;
         } while (true);
 
         // Calculate IO Rate
@@ -344,35 +377,38 @@ public class ProcessService : IProcessService, IDisposable
         }
 
         // Remove stopped processes using pooled buffer
-        _deadPidsBuffer.Clear();
-        foreach (var pid in _activeProcesses.Keys)
+        stoppedPidsBuffer.Clear();
+        foreach (var pid in activeProcesses.Keys)
         {
-            if (!_currentPidsBuffer.Contains(pid))
+            if (!currentPidsBuffer.Contains(pid))
             {
-                _deadPidsBuffer.Add(pid);
+                stoppedPidsBuffer.Add(pid);
             }
         }
 
-        foreach (var pid in _deadPidsBuffer)
+        foreach (var pid in stoppedPidsBuffer)
         {
-            _activeProcesses.Remove(pid);
-            _prevProcessStats.Remove(pid); // Remove history
+            activeProcesses.Remove(pid);
+            prevProcessStats.Remove(pid); // Remove history
         }
 
         // ADDED: Calculate Top 5 CPU Processes (O(N) - Single Pass)
-        Array.Clear(_top5Buffer); // Reset buffer
+        Array.Clear(top5Buffer); // Reset buffer
 
-        foreach (var process in _activeProcesses.Values)
+        foreach (var process in activeProcesses.Values)
         {
-            // Skip Idle and System for "Top Apps" context if desired, 
+            // Skip Idle and System for "Top Apps" context if desired,
             // but usually users want to see what's eating CPU, including System.
             // We skip Idle (PID 0) as it's not a real process usage.
-            if (process.Pid == 0) continue;
+            if (process.Pid == 0)
+            {
+                continue;
+            }
 
             InsertIntoTop5(process);
         }
 
-        stats.Top5Processes = _top5Buffer;
+        stats.Top5Processes = top5Buffer;
 
         return stats;
     }
@@ -384,18 +420,18 @@ public class ProcessService : IProcessService, IDisposable
 
         for (int i = 0; i < 5; i++)
         {
-            var current = _top5Buffer[i];
+            var current = top5Buffer[i];
 
             if (current == null || candidate.CpuPercentage > current.CpuPercentage)
             {
                 // Shift remaining items down
                 for (int j = 4; j > i; j--)
                 {
-                    _top5Buffer[j] = _top5Buffer[j - 1];
+                    top5Buffer[j] = top5Buffer[j - 1];
                 }
 
                 // Insert
-                _top5Buffer[i] = candidate;
+                top5Buffer[i] = candidate;
                 break;
             }
         }
@@ -403,34 +439,34 @@ public class ProcessService : IProcessService, IDisposable
 
     private void RebuildTreeStructure()
     {
-        _rootNodes.Clear();
+        rootNodes.Clear();
 
-        // Reset children without reallocating lists if possible, 
+        // Reset children without reallocating lists if possible,
         // but ProcessInfo.Children is a List<T>, so Clear() is O(N) but keeps capacity.
-        foreach (var p in _activeProcesses.Values)
+        foreach (var p in activeProcesses.Values)
         {
             p.Children.Clear();
         }
 
-        foreach (var p in _activeProcesses.Values)
+        foreach (var p in activeProcesses.Values)
         {
-            if (p.ParentPid != 0 && _activeProcesses.TryGetValue(p.ParentPid, out var parent))
+            if (p.ParentPid != 0 && activeProcesses.TryGetValue(p.ParentPid, out var parent))
             {
                 parent.Children.Add(p);
             }
             else
             {
-                _rootNodes.Add(p);
+                rootNodes.Add(p);
             }
         }
 
         // Sort the tree
-        SortTree(_rootNodes);
+        SortTree(rootNodes);
     }
 
     private void SortTree(List<ProcessInfo> nodes)
     {
-        nodes.Sort(_nameComparer);
+        nodes.Sort(nameComparer);
         foreach (var node in nodes)
         {
             if (node.Children.Count > 0)
@@ -442,12 +478,18 @@ public class ProcessService : IProcessService, IDisposable
 
     private string GetCommandLine(int pid)
     {
-        if (pid <= 4) return string.Empty;
+        if (pid <= 4)
+        {
+            return string.Empty;
+        }
 
         IntPtr hProcess = NativeMethods.OpenProcess(
             NativeMethods.PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
 
-        if (hProcess == IntPtr.Zero) return string.Empty;
+        if (hProcess == IntPtr.Zero)
+        {
+            return string.Empty;
+        }
 
         try
         {
@@ -456,7 +498,10 @@ public class ProcessService : IProcessService, IDisposable
             NativeMethods.NtQueryInformationProcess(hProcess,
                 NativeMethods.ProcessCommandLineInformation, IntPtr.Zero, 0, out bufferSize);
 
-            if (bufferSize == 0) return string.Empty;
+            if (bufferSize == 0)
+            {
+                return string.Empty;
+            }
 
             IntPtr buffer = Marshal.AllocHGlobal(bufferSize);
             try
@@ -508,16 +553,16 @@ public class ProcessService : IProcessService, IDisposable
 
     public void Dispose()
     {
-        if (_buffer != IntPtr.Zero)
+        if (buffer != IntPtr.Zero)
         {
-            Marshal.FreeHGlobal(_buffer);
-            _buffer = IntPtr.Zero;
+            Marshal.FreeHGlobal(buffer);
+            buffer = IntPtr.Zero;
         }
 
-        if (_pdhQuery != IntPtr.Zero)
+        if (pdhQuery != IntPtr.Zero)
         {
-            NativeMethods.PdhCloseQuery(_pdhQuery);
-            _pdhQuery = IntPtr.Zero;
+            NativeMethods.PdhCloseQuery(pdhQuery);
+            pdhQuery = IntPtr.Zero;
         }
 
         GC.SuppressFinalize(this);
