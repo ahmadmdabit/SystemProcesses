@@ -1,6 +1,6 @@
 <p align="center">
   <a href="#" target="_blank">
-    <img src="Resources/Images/AppIcon/SystemProcess.png" width="200" alt="Project Logo">
+    <img src="SystemProcesses.Desktop/Resources/Images/AppIcon/SystemProcess.png" width="200" alt="Project Logo">
   </a>
 </p>
 
