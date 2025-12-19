@@ -25,6 +25,7 @@
 *   **Resource Efficiency:**
     *   **Icons:** Extracted once, frozen, and cached using `ImageLoaderService`.
     *   **Strings:** `PidText` and other static strings are cached to avoid boxing.
+*   **Always-On-Top Stats Window:** Optional StatsView overlay displays real-time system statistics (CPU, RAM, VM, Disk, Drive space) above the taskbar using message-driven Win32 enforcement.
 *   **Modern Stack:** Built on .NET 9, utilizing `LibraryImport`, `Span<T>`, and the MVVM Toolkit.
 
 ## 🛠 Architecture & Optimizations

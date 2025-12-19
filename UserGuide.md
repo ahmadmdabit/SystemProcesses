@@ -16,6 +16,7 @@
 2. [The Dashboard](#the-dashboard)
 3. [Managing Processes](#managing-processes)
 4. [Advanced Features](#advanced-features)
+   - [StatsView Overlay](#statsview-overlay)
 5. [System Tray Integration](#system-tray-integration)
 6. [Troubleshooting](#troubleshooting)
 
@@ -107,6 +108,18 @@ Use the dropdown menu in the top-right corner to change how often data updates:
 *   **Fast (1s - 2s):** Best for real-time monitoring.
 *   **Slow (5s - 20s):** Reduces the application's own resource usage.
 *   **Disabled:** Pauses updates completely (useful when inspecting a rapidly changing list).
+
+### 📊 StatsView Overlay
+An optional always-on-top statistics window that displays real-time system metrics at the bottom of your screen.
+
+*   **Display:** Shows CPU, RAM, VM (Virtual Memory), Disk activity percentage, and free space for all drives.
+*   **Positioning:** Automatically positioned at the bottom of the screen, overlaying the taskbar.
+*   **Always Visible:** Remains visible above all windows, including the taskbar, using message-driven Win32 z-order enforcement.
+*   **Draggable:** Click and drag to reposition the window anywhere on screen.
+*   **Close:** Press **ESC** key to close the StatsView window.
+*   **Updates:** Refreshes in real-time, synchronized with the main application's refresh rate.
+
+> **Technical Note:** StatsView uses optimized Windows messaging (WM_WINDOWPOSCHANGING, WM_ACTIVATEAPP) for zero-allocation, event-driven topmost enforcement without periodic polling.
 
 ---
 

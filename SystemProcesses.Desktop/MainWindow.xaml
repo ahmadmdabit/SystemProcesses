@@ -20,8 +20,6 @@
         <viewmodels:MainViewModel />
     </Window.DataContext>
 
-    <Window.Resources />
-
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -39,10 +37,15 @@
             ToolTipText="System Processes">
 
             <tb:TaskbarIcon.ContextMenu>
-                <ContextMenu>
-                    <MenuItem Command="{Binding ShowApplicationCommand}" Header="Show" />
-                    <Separator />
-                    <MenuItem Command="{Binding ExitApplicationCommand}" Header="Exit" />
+                <ContextMenu Style="{StaticResource ContextMenuStyle}">
+                    <MenuItem
+                        Command="{Binding ShowApplicationCommand}"
+                        Header="Show"
+                        Style="{StaticResource MenuItemStyle}" />
+                    <MenuItem
+                        Command="{Binding ExitApplicationCommand}"
+                        Header="Exit"
+                        Style="{StaticResource MenuItemStyle}" />
                 </ContextMenu>
             </tb:TaskbarIcon.ContextMenu>
 

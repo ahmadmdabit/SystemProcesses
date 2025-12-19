@@ -3,6 +3,7 @@ using System.Windows.Controls;
 
 using SystemProcesses.Desktop.Helpers;
 using SystemProcesses.Desktop.ViewModels;
+using SystemProcesses.Desktop.Views;
 
 namespace SystemProcesses.Desktop;
 
@@ -15,11 +16,19 @@ public partial class MainWindow : Window
 
     public readonly ILiteDialogService liteDialogService;
 
+    private StatsView? statsView;
     public MainWindow()
     {
         liteDialogService = new LiteDialogService();
 
         InitializeComponent();
+
+        // Wire up StatsView with MainViewModel reference for data sharing
+        if (DataContext is MainViewModel mainViewModel)
+        {
+            statsView = new StatsView(mainViewModel);
+            statsView.Show();
+        }
     }
 
     private void TreeViewSelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -42,6 +51,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(System.EventArgs e)
     {
+        statsView?.Close();
+
         if (DataContext is MainViewModel viewModel)
         {
             viewModel.Dispose();

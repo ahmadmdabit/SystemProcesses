@@ -206,4 +206,85 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <!--  ContextMenu Style  -->
+    <Style x:Key="ContextMenuStyle" TargetType="ContextMenu">
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Background" Value="#FF1E1E1E" />
+        <Setter Property="BorderBrush" Value="#FF3F3F46" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="4" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContextMenu">
+                    <Popup
+                        x:Name="Popup"
+                        AllowsTransparency="True"
+                        Focusable="False"
+                        HorizontalOffset="{TemplateBinding HorizontalOffset}"
+                        IsOpen="{TemplateBinding IsOpen}"
+                        Placement="{TemplateBinding Placement}"
+                        PlacementRectangle="{TemplateBinding PlacementRectangle}"
+                        PlacementTarget="{TemplateBinding PlacementTarget}"
+                        PopupAnimation="Fade"
+                        VerticalOffset="{TemplateBinding VerticalOffset}">
+
+                        <Border
+                            Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="8">
+
+                            <Border.Effect>
+                                <DropShadowEffect
+                                    BlurRadius="18"
+                                    Opacity="0.35"
+                                    ShadowDepth="0" />
+                            </Border.Effect>
+
+                            <ItemsPresenter />
+                        </Border>
+                    </Popup>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  MenuItem Style  -->
+    <Style x:Key="MenuItemStyle" TargetType="MenuItem">
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="Foreground" Value="#FF00EE00" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="MenuItem">
+                    <Border
+                        x:Name="Root"
+                        Height="30"
+                        Background="Transparent"
+                        CornerRadius="5">
+                        <ContentPresenter
+                            Margin="8,0,8,0"
+                            VerticalAlignment="Center"
+                            Content="{TemplateBinding Header}" />
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <!--  Hover  -->
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#FF00EE00" />
+                            <Setter Property="Foreground" Value="Black" />
+                        </Trigger>
+
+                        <!--  Disabled  -->
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="#FF7A7A7A" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 </ResourceDictionary>

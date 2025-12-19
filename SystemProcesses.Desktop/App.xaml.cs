@@ -10,18 +10,22 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         // 1. Configure Serilog
-        Log.Logger = new LoggerConfiguration()
+        var loggerConfiguration = new LoggerConfiguration()
             .MinimumLevel.Warning() // PERFORMANCE: Only log Warnings and Errors. Ignore Info/Debug to save IO.
             .Enrich.FromLogContext()
             .Enrich.WithThreadId()  // Critical for debugging your async code
-            .Enrich.WithProcessId()
-            .WriteTo.Async(a => a.File(
+            .Enrich.WithProcessId();
+#if DEBUG
+        loggerConfiguration.WriteTo.Debug();
+#endif
+        loggerConfiguration.WriteTo.Async(a => a.File(
                 "logs/SystemProcesses-.log",
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] [Thread:{ThreadId}] {Message:lj}{NewLine}{Exception}",
                 rollingInterval: RollingInterval.Day,
                 retainedFileCountLimit: 7
-            ))
-            .CreateLogger();
+            ));
+
+        Log.Logger = loggerConfiguration.CreateLogger();
 
         // 2. Global Exception Handling (Catch crashes)
         AppDomain.CurrentDomain.UnhandledException += (s, args) =>

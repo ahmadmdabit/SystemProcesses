@@ -29,6 +29,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IImageLoaderService imageLoaderService;
     private readonly DispatcherTimer refreshTimer;
 
+    // Event for notifying StatsView of system statistics updates
+    public event EventHandler? StatsUpdated;
+
     // Flag to prevent infinite loops during shutdown
     public bool IsExitConfirmed { get; private set; }
 
@@ -111,6 +114,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private double diskActivePercent;
     [ObservableProperty] private double ramFreePercentage;
     [ObservableProperty] private double vmFreePercentage;
+
+    // Current system statistics for StatsView binding
+    public SystemStats SystemStats { get; private set; }
 
     [ObservableProperty] private string storageStatsText = string.Empty;
     [ObservableProperty] private string storageStatsTrayText = string.Empty;
@@ -259,11 +265,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     TotalIoBytesPerSec = stats.TotalIoBytesPerSec;
                     DiskActivePercent = stats.DiskActivePercent;
 
+                    // Store SystemStats for StatsView
+                    SystemStats = stats;
+
                     // Update Storage Stats
                     UpdateStorageStats(stats);
 
                     // Update Tray Tooltip
                     UpdateTrayState(stats);
+
+                    // Notify StatsView of stats update
+                    StatsUpdated?.Invoke(this, EventArgs.Empty);
                 });
             } while (isRefreshPending);
         }
@@ -332,7 +344,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     Parameters = node.Parameters,
                     IsService = node.IsService,
                     ParentPid = node.ParentPid,
-                    ProcessPath = node.ProcessPath
+                    ProcessPath = node.ProcessPath,
+                    CreateTime = node.CreateTime
                 };
                 // ProcessInfo.Children is a get-only List, so we use AddRange
                 clone.Children.AddRange(filteredChildren);
