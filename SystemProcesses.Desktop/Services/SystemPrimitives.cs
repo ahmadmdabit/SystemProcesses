@@ -446,7 +446,7 @@ internal static partial class SystemPrimitives
     /// Changes the size, position, and Z order of a child, pop-up, or top-level window.
     /// </summary>
     /// <param name="hWnd">Handle to the window.</param>
-    /// <param name="hWndInsertAfter">Handle to the window to precede the positioned window in the Z order (can be HWND_TOPMOST).</param>
+    /// <param name="hWndInsertAfter">Handle to the window to precede the positioned window in the Z order (can be HwndTopMost).</param>
     /// <param name="X">New position of the left side of the window, in client coordinates.</param>
     /// <param name="Y">New position of the top of the window, in client coordinates.</param>
     /// <param name="cx">New width of the window, in pixels.</param>

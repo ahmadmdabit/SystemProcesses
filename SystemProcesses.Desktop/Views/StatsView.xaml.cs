@@ -29,6 +29,10 @@ public partial class StatsView : Window
     private IntPtr windowHandle;
     private HwndSource? hwndSource;
     private readonly ConcurrentDictionary<int, int> messageFrequency = new();
+    private readonly DispatcherTimer updateTimer = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(500),
+    };
 
     /// <summary>
     /// Initializes StatsView with reference to MainViewModel for data sharing.
@@ -50,6 +54,10 @@ public partial class StatsView : Window
 
         // Subscribe to MainViewModel's stats updates
         mainViewModel.StatsUpdated += OnMainViewModelStatsUpdated;
+
+        // Start periodic update timer
+        updateTimer.Tick += (s, e) => EnsureTopmost();
+        updateTimer.Start();
     }
 
 
@@ -152,6 +160,9 @@ public partial class StatsView : Window
     /// </summary>
     protected override void OnClosed(EventArgs e)
     {
+        // Stop update timer
+        updateTimer.Stop();
+
         // Unhook from Windows message pump
         if (hwndSource != null)
         {
@@ -172,11 +183,11 @@ public partial class StatsView : Window
         {
             string msgName = kvp.Key switch
             {
-                SystemPrimitives.WmWindowPosChanging => "WM_WINDOWPOSCHANGING",
-                SystemPrimitives.WmActivateApp => "WM_ACTIVATEAPP",
-                SystemPrimitives.WmDisplayChange => "WM_DISPLAYCHANGE",
-                SystemPrimitives.WmSettingChange => "WM_SETTINGCHANGE",
-                SystemPrimitives.WmDwmComPositionChanged => "WM_DWMCOMPOSITIONCHANGED",
+                SystemPrimitives.WmWindowPosChanging => "WmWindowPosChanging",
+                SystemPrimitives.WmActivateApp => "WmActivateApp",
+                SystemPrimitives.WmDisplayChange => "WmDisplayChange",
+                SystemPrimitives.WmSettingChange => "WmSettingChange",
+                SystemPrimitives.WmDwmComPositionChanged => "WmDwmComPositionChanged",
                 _ => $"0x{kvp.Key:X4}"
             };
             Log.Information("  {MessageName}: {Count} times", msgName, kvp.Value);
@@ -225,11 +236,11 @@ public partial class StatsView : Window
 
                 if (!result)
                 {
-                    Log.Warning("SetWindowPos failed to set HWND_TOPMOST - window may not appear above taskbar");
+                    Log.Warning("SetWindowPos failed to set HwndTopMost - window may not appear above taskbar");
                 }
                 else
                 {
-                    Log.Information("StatsView set to HWND_TOPMOST - should appear above taskbar");
+                    Log.Information("StatsView set to HwndTopMost - should appear above taskbar");
                 }
             }
 
@@ -263,7 +274,7 @@ public partial class StatsView : Window
         switch (msg)
         {
             case SystemPrimitives.WmWindowPosChanging:
-                // Intercept z-order changes and force HWND_TOPMOST
+                // Intercept z-order changes and force HwndTopMost
                 if (lParam != IntPtr.Zero)
                 {
                     // Marshal structure from unmanaged memory
@@ -272,27 +283,26 @@ public partial class StatsView : Window
                     // Check if z-order is being changed
                     if ((windowPos.flags & SystemPrimitives.SwpNoZOrder) == 0)
                     {
-                        // Force HWND_TOPMOST to maintain position above taskbar
+                        // Force HwndTopMost to maintain position above taskbar
                         windowPos.hwndInsertAfter = SystemPrimitives.HwndTopMost;
-                        windowPos.flags &= ~SystemPrimitives.SwpNoZOrder; // Ensure z-order change is applied
 
                         // Write modified structure back to unmanaged memory
                         Marshal.StructureToPtr(windowPos, lParam, false);
 
-                        Log.Debug("WM_WINDOWPOSCHANGING intercepted - enforcing HWND_TOPMOST");
+                        Log.Debug("WmWindowPosChanging intercepted - enforcing HwndTopMost");
                     }
                 }
                 break;
 
             case SystemPrimitives.WmActivateApp:
                 // Application-level activation (switching between apps)
-                Log.Debug("WM_ACTIVATEAPP received - enforcing topmost");
+                Log.Debug("WmActivateApp received - enforcing topmost");
                 EnsureTopmost();
                 break;
 
             case SystemPrimitives.WmDisplayChange:
                 // Display resolution or orientation changed
-                Log.Information("WM_DISPLAYCHANGE received - repositioning and enforcing topmost");
+                Log.Information("WmDisplayChange received - repositioning and enforcing topmost");
                 PositionAtBottom(); // May need to reposition for new screen dimensions
                 EnsureTopmost();
                 break;
@@ -304,7 +314,7 @@ public partial class StatsView : Window
                     string? setting = Marshal.PtrToStringUni(lParam);
                     if (setting == "WindowMetrics" || setting == "WorkArea")
                     {
-                        Log.Information("WM_SETTINGCHANGE (WorkArea/WindowMetrics) - repositioning and enforcing topmost");
+                        Log.Information("WmSettingChange (WorkArea/WindowMetrics) - repositioning and enforcing topmost");
                         PositionAtBottom();
                     }
                 }
@@ -313,7 +323,7 @@ public partial class StatsView : Window
 
             case SystemPrimitives.WmDwmComPositionChanged:
                 // DWM composition state changed (Aero on/off)
-                Log.Information("WM_DWMCOMPOSITIONCHANGED received - enforcing topmost");
+                Log.Information("WmDwmComPositionChanged received - enforcing topmost");
                 EnsureTopmost();
                 break;
         }
@@ -334,11 +344,12 @@ public partial class StatsView : Window
             return;
 
         // Use NOACTIVATE to avoid stealing focus from other applications
+        // Include SHOWWINDOW to restore visibility after display/DWM changes
         bool result = SystemPrimitives.SetWindowPos(
             windowHandle,
             SystemPrimitives.HwndTopMost,
             0, 0, 0, 0,
-            SystemPrimitives.SpwNoMove | SystemPrimitives.SwpNoSize | SystemPrimitives.SwpNoActivate
+            SystemPrimitives.SpwNoMove | SystemPrimitives.SwpNoSize | SystemPrimitives.SwpNoActivate | SystemPrimitives.SwpShowWindow
         );
 
         // Note: SetWindowPos can legitimately fail during window teardown

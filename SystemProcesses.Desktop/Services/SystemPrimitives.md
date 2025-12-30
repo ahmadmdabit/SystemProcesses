@@ -104,7 +104,7 @@ Retrieves a bitmask representing the currently available disk drives.
 #### `GetDriveTypeW`
 Determines the drive type (Fixed, Removable, Network, etc.) for a specific root path.
 *   **Input:** Requires a pointer to a null-terminated string (e.g., `C:\`).
-*   **Usage:** Filter for `DRIVE_FIXED` (3) to avoid blocking on network or removable drives.
+*   **Usage:** Filter for `DriveTypeFixed` (3) to avoid blocking on network or removable drives.
 
 #### `GetDiskFreeSpaceExW`
 Retrieves storage capacity and free space.

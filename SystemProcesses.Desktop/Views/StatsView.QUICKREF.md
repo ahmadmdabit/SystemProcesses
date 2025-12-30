@@ -5,8 +5,8 @@ StatsView window stays **above the taskbar permanently**, even when taskbar is c
 
 ## Solution Overview
 **Message-Driven Strategy**: 2 layers of enforcement
-1. WM_WINDOWPOSCHANGING interception (proactive, 87% of events)
-2. WM_ACTIVATEAPP handling (user interactions, 13% of events)
+1. WmWindowPosChanging interception (proactive, 87% of events)
+2. WmActivateApp handling (user interactions, 13% of events)
 
 ---
 
@@ -17,17 +17,17 @@ Added Win32 APIs and constants:
 ```csharp
 // Window Positioning
 public static partial bool SetWindowPos(...);
-public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
-public const uint SWP_NOMOVE = 0x0002;
-public const uint SWP_NOSIZE = 0x0001;
-public const uint SWP_NOACTIVATE = 0x0010;
-public const uint SWP_NOZORDER = 0x0004;
+public static readonly IntPtr HwndTopMost = new IntPtr(-1);
+public const uint SwpNomove = 0x0002;
+public const uint SwpNosize = 0x0001;
+public const uint SwpNoactivate = 0x0010;
+public const uint SwpNozorder = 0x0004;
 
 // Messages
-public const int WM_WINDOWPOSCHANGING = 0x0046;
-public const int WM_ACTIVATEAPP = 0x001C;
-public const int WM_DISPLAYCHANGE = 0x007E;
-public const int WM_SETTINGCHANGE = 0x001A;
+public const int WmWindowPosChanging = 0x0046;
+public const int WmActivateApp = 0x001C;
+public const int WmDisplayChange = 0x007E;
+public const int WmSettingChange = 0x001A;
 
 // Handle Validation
 public static partial bool IsWindow(IntPtr hWnd);
@@ -44,12 +44,12 @@ public struct WINDOWPOS { ... }
 ### 3. `StatsView.xaml.cs`
 Core implementation with 2 message-driven layers:
 
-**Layer 1: WM_WINDOWPOSCHANGING (Primary)**
+**Layer 1: WmWindowPosChanging (Primary)**
 - Intercepts z-order changes before they occur
-- Modifies WINDOWPOS structure to force HWND_TOPMOST
+- Modifies WINDOWPOS structure to force HwndTopMost
 - Handles 87% of enforcement needs
 
-**Layer 2: WM_ACTIVATEAPP (Secondary)**
+**Layer 2: WmActivateApp (Secondary)**
 - Catches application-level activation events
 - Handles user interactions (taskbar clicks, Alt+Tab)
 - Handles 13% of enforcement needs
@@ -57,7 +57,7 @@ Core implementation with 2 message-driven layers:
 **EnsureTopmost with Handle Validation**
 - Validates window handle with `IsWindow()` before Win32 calls
 - Prevents benign failures during window close
-- Uses SWP_NOACTIVATE to avoid stealing focus
+- Uses SwpNoactivate to avoid stealing focus
 
 ---
 
@@ -68,7 +68,7 @@ OnLoaded()
   → Get window handle
   → PositionAtBottom()
      → Set position: Top = screenHeight - windowHeight
-     → SetWindowPos(HWND_TOPMOST)
+     → SetWindowPos(HwndTopMost)
 
 OnSourceInitialized()
   → Get HwndSource
@@ -92,16 +92,16 @@ OnClosed()
 
 ### When Taskbar is Clicked:
 ```
-1. Windows sends WM_WINDOWPOSCHANGING to StatsView
+1. Windows sends WmWindowPosChanging to StatsView
 2. WndProc intercepts message
-3. Modifies WINDOWPOS.hwndInsertAfter → HWND_TOPMOST
+3. Modifies WINDOWPOS.hwndInsertAfter → HwndTopMost
 4. Windows applies modified z-order
 5. StatsView remains visible above taskbar ✓
 ```
 
 ### When User Switches Apps (Alt+Tab):
 ```
-Windows sends WM_ACTIVATEAPP → EnsureTopmost() → SetWindowPos(HWND_TOPMOST)
+Windows sends WmActivateApp → EnsureTopmost() → SetWindowPos(HwndTopMost)
 ```
 
 ---
@@ -126,15 +126,15 @@ Windows sends WM_ACTIVATEAPP → EnsureTopmost() → SetWindowPos(HWND_TOPMOST)
 **Check Logs:**
 ```
 [INF] WndProc hook registered for StatsView          ✓
-[DBG] WM_WINDOWPOSCHANGING intercepted - enforcing HWND_TOPMOST ✓
-[DBG] WM_ACTIVATEAPP received - enforcing topmost    ✓
+[DBG] WmWindowPosChanging intercepted - enforcing HwndTopMost ✓
+[DBG] WmActivateApp received - enforcing topmost    ✓
 [INF] Message frequency summary: (on close)          ✓
 ```
 
 **Solutions:**
 1. Verify `Topmost="True"` in XAML
 2. Check WndProc hook registered successfully
-3. Verify WM_ACTIVATEAPP messages being received
+3. Verify WmActivateApp messages being received
 4. Check no errors in SetWindowPos calls
 5. Ensure `IsWindow()` validation not failing
 
@@ -205,7 +205,7 @@ Windows sends WM_ACTIVATEAPP → EnsureTopmost() → SetWindowPos(HWND_TOPMOST)
 
 ## Architecture Decisions
 
-### Why WM_WINDOWPOSCHANGING?
+### Why WmWindowPosChanging?
 - **Proactive**: Prevents change before it happens
 - **Efficient**: Single operation vs change + correction
 - **UX**: No visible flicker
@@ -217,9 +217,9 @@ Windows sends WM_ACTIVATEAPP → EnsureTopmost() → SetWindowPos(HWND_TOPMOST)
 - **Responsiveness**: Real-time (<1ms) vs timer latency (0-2s)
 - **Simplicity**: Fewer moving parts, cleaner code
 
-### Why Only WM_ACTIVATEAPP (Not WM_ACTIVATE)?
-- **Redundancy**: WM_ACTIVATE and WM_NCACTIVATE were duplicates
-- **Coverage**: WM_ACTIVATEAPP alone catches all user interactions
+### Why Only WmActivateApp (Not WmActivate)?
+- **Redundancy**: WmActivate and WmNcActivate were duplicates
+- **Coverage**: WmActivateApp alone catches all user interactions
 - **Efficiency**: Eliminates 14-19% redundant calls
 - **Evidence**: 52s test showed identical timing/frequency
 
@@ -263,7 +263,7 @@ dotnet run --project SystemProcesses.Desktop
 
 ✅ **Goal Achieved**: StatsView stays above taskbar permanently
 
-✅ **Method**: 2-layer message-driven (WM_WINDOWPOSCHANGING + WM_ACTIVATEAPP)
+✅ **Method**: 2-layer message-driven (WmWindowPosChanging + WmActivateApp)
 
 ✅ **Performance**: Zero-allocation, 0.016% CPU overhead, no polling
 

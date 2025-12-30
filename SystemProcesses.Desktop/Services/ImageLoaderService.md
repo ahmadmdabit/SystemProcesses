@@ -384,7 +384,7 @@ Notes:
 * `Icon.ExtractAssociatedIcon` is synchronous (fast for small icons). We create the `BitmapSource` on the UI thread (required) then freeze it.
 * Use `SystemIcons.Application` fallback if null.
 
-## B — Using `SHGetFileInfo` (get small/large / shell icons) — P/Invoke variant
+## B — Using `SHGetFileInfo` (get small/large / explorer icons) — P/Invoke variant
 
 ```csharp
 using System;
@@ -393,7 +393,7 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
 
-private static class ShellIcon
+private static class ExplorerIcon
 {
     [DllImport("shell32.dll", CharSet = CharSet.Auto)]
     private static extern IntPtr SHGetFileInfo(string pszPath, uint dwFileAttributes, out SHFILEINFO psfi, uint cbFileInfo, uint uFlags);
@@ -410,25 +410,25 @@ private static class ShellIcon
         public string szTypeName;
     }
 
-    private const uint SHGFI_ICON = 0x000000100;
-    private const uint SHGFI_SMALLICON = 0x000000001;
-    private const uint SHGFI_LARGEICON = 0x000000000;
+    private const uint ShGfiIcon = 0x000000100;
+    private const uint ShGfiSmallIcon = 0x000000001;
+    private const uint ShGfiLargeIcon = 0x000000000;
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool DestroyIcon(IntPtr hIcon);
 
     /// <summary>
-    /// Returns a frozen BitmapSource for the shell icon (small or large).
+    /// Returns a frozen BitmapSource for the explorer icon (small or large).
     /// </summary>
-    public static Task<BitmapSource> LoadShellIconAsync(string path, bool smallIcon = true)
+    public static Task<BitmapSource> LoadExplorerIconAsync(string path, bool smallIcon = true)
     {
         return Application.Current.Dispatcher.InvokeAsync(() =>
         {
-            var flags = SHGFI_ICON | (smallIcon ? SHGFI_SMALLICON : SHGFI_LARGEICON);
+            var flags = ShGfiIcon | (smallIcon ? ShGfiSmallIcon : ShGfiLargeIcon);
             var shfi = new SHFILEINFO();
             IntPtr res = SHGetFileInfo(path, 0, out shfi, (uint)Marshal.SizeOf(shfi), flags);
             if (res == IntPtr.Zero || shfi.hIcon == IntPtr.Zero)
-                throw new InvalidOperationException("Failed to obtain shell icon.");
+                throw new InvalidOperationException("Failed to obtain explorer icon.");
 
             try
             {
@@ -451,7 +451,7 @@ private static class ShellIcon
 
 Notes:
 
-* `SHGetFileInfo` allows requesting small/large icons as the shell reports them.
+* `SHGetFileInfo` allows requesting small/large icons as the explorer reports them.
 * Must call `DestroyIcon` to free the native handle.
 * All UI/WPF interop (CreateBitmapSourceFromHIcon and Freeze) is done on the UI thread.
 

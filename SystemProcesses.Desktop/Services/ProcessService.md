@@ -40,11 +40,11 @@ This method is the "heartbeat" of the service, executing the following sequence:
     *   Calls `GetLogicalDrives` to get a bitmask of active drives.
     *   Iterates bits 0-25 (A-Z).
     *   Uses `stackalloc char[4]` to construct root paths (e.g., `C:\`) without string allocation.
-    *   Filters for `DRIVE_FIXED` (3) to ensure UI responsiveness.
+    *   Filters for `DriveTypeFixed` (3) to ensure UI responsiveness.
     *   Calls `GetDiskFreeSpaceExW` for capacity stats.
 5.  **Process Iteration (Unsafe Pointer Arithmetic):**
     *   Traverses the `SystemProcessInformation` linked list in the native buffer.
-    *   **String Safety:** Marshals `UNICODE_STRING` buffers using `Length / 2` (converting OS Bytes to .NET Chars) to prevent buffer overreads.
+    *   **String Safety:** Marshals `UnicodeString` buffers using `Length / 2` (converting OS Bytes to .NET Chars) to prevent buffer overreads.
     *   **Delta Calculation:**
         *   `CPU %` = `(CurrentKernel + CurrentUser - PrevTotal) / WallClockDelta / ProcessorCount`.
         *   `IO Rate` = `(CurrentTransfers - PrevTransfers) / WallClockDelta`.

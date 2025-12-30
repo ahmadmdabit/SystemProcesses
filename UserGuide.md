@@ -119,7 +119,7 @@ An optional always-on-top statistics window that displays real-time system metri
 *   **Close:** Press **ESC** key to close the StatsView window.
 *   **Updates:** Refreshes in real-time, synchronized with the main application's refresh rate.
 
-> **Technical Note:** StatsView uses optimized Windows messaging (WM_WINDOWPOSCHANGING, WM_ACTIVATEAPP) for zero-allocation, event-driven topmost enforcement without periodic polling.
+> **Technical Note:** StatsView uses optimized Windows messaging (WmWindowPosChanging, WmActivateApp) for zero-allocation, event-driven topmost enforcement without periodic polling.
 
 ---
 

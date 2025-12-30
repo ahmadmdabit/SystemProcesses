@@ -12,6 +12,12 @@
         TrueBrush="Gray" />
     <converters:IndentationWidthConverter x:Key="IndentationWidthConverter" />
 
+    <!--  LinearGradientBrushes  -->
+    <LinearGradientBrush x:Key="ComboBox.Static.Background" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Offset="0.0" Color="#FFF0F0F0" />
+        <GradientStop Offset="1.0" Color="#FFE5E5E5" />
+    </LinearGradientBrush>
+
     <!--  TreeView Style  -->
     <Style x:Key="TreeViewItemStyle" TargetType="TreeViewItem">
         <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
@@ -95,28 +101,6 @@
         </Setter>
     </Style>
 
-    <!--  Rounded TextBox  -->
-    <Style TargetType="TextBox">
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="4" />
-        <Setter Property="Background" Value="White" />
-        <Setter Property="BorderBrush" Value="#CCC" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="TextBox">
-                    <Border
-                        Background="{TemplateBinding Background}"
-                        BorderBrush="{TemplateBinding BorderBrush}"
-                        BorderThickness="{TemplateBinding BorderThickness}"
-                        CornerRadius="6">
-                        <!--  PART_ContentHost is required for TextBox editing surface  -->
-                        <ScrollViewer x:Name="PART_ContentHost" Background="Transparent" />
-                    </Border>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
     <!--  small chevron toggle template  -->
     <ControlTemplate x:Key="ComboBoxToggleButton" TargetType="ToggleButton">
         <Border
@@ -137,75 +121,6 @@
             </Grid>
         </Border>
     </ControlTemplate>
-
-    <!--  Rounded ComboBox (includes Popup PART_Popup and ItemsPresenter)  -->
-    <Style TargetType="ComboBox">
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="3" />
-        <Setter Property="Background" Value="White" />
-        <Setter Property="BorderBrush" Value="#CCC" />
-        <Setter Property="SnapsToDevicePixels" Value="True" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="ComboBox">
-                    <Grid>
-                        <!--  Main rounded border  -->
-                        <Border
-                            x:Name="Bd"
-                            Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="6" />
-
-                        <!--  Selection content  -->
-                        <ContentPresenter
-                            x:Name="ContentSite"
-                            Margin="8,2,28,2"
-                            HorizontalAlignment="Left"
-                            VerticalAlignment="Center"
-                            Content="{TemplateBinding SelectionBoxItem}"
-                            ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                            ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
-                            IsHitTestVisible="False" />
-
-                        <!--  Toggle button on the right  -->
-                        <ToggleButton
-                            x:Name="ToggleButton"
-                            Width="28"
-                            HorizontalAlignment="Right"
-                            VerticalAlignment="Stretch"
-                            Focusable="false"
-                            IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
-                            Template="{StaticResource ComboBoxToggleButton}" />
-
-                        <!--  Popup hosting the dropdown - THIS IS REQUIRED  -->
-                        <Popup
-                            x:Name="PART_Popup"
-                            AllowsTransparency="True"
-                            Focusable="False"
-                            IsOpen="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
-                            Placement="Bottom"
-                            PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}"
-                            PopupAnimation="Fade"
-                            StaysOpen="False">
-                            <Border
-                                MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
-                                Padding="2"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                SnapsToDevicePixels="True">
-                                <ScrollViewer MaxHeight="280" CanContentScroll="True">
-                                    <ItemsPresenter />
-                                </ScrollViewer>
-                            </Border>
-                        </Popup>
-                    </Grid>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
 
     <!--  ContextMenu Style  -->
     <Style x:Key="ContextMenuStyle" TargetType="ContextMenu">

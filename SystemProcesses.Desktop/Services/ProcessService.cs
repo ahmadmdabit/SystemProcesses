@@ -367,7 +367,7 @@ public class ProcessService : IProcessService, IDisposable
                 }
                 else
                 {
-                    // DX: UNICODE_STRING.Length is reported in BYTES by the OS kernel.
+                    // DX: UnicodeString.Length is reported in BYTES by the OS kernel.
                     // Marshal.PtrToStringUni expects a length in CHARACTERS.
                     // Since UTF-16 uses 2 bytes per character, we divide by 2 to get the correct count.
                     // Zero-alloc string creation if possible, but we need a string for WPF.
@@ -520,7 +520,7 @@ public class ProcessService : IProcessService, IDisposable
         try
         {
             int bufferSize = 0;
-            // Get size first (usually returns STATUS_INFO_LENGTH_MISMATCH)
+            // Get size first (usually returns StatusInfoLengthMismatch)
             SystemPrimitives.NtQueryInformationProcess(hProcess,
                 SystemPrimitives.ProcessCommandLineInformation, IntPtr.Zero, 0, out bufferSize);
 
@@ -537,7 +537,7 @@ public class ProcessService : IProcessService, IDisposable
 
                 if (status == SystemPrimitives.StatusSuccess)
                 {
-                    // Read UNICODE_STRING
+                    // Read UnicodeString
                     var unicodeString = Marshal.PtrToStructure<SystemPrimitives.UnicodeString>(buffer);
                     if (unicodeString.Buffer != IntPtr.Zero && unicodeString.Length > 0)
                     {

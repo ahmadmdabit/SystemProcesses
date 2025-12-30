@@ -22,7 +22,7 @@
 │                                 │                                    │
 │  ┌────────────────────────────────────────────────────────────────┐ │
 │  │              SystemPrimitives.cs (Win32 API)                   │ │
-│  │    SetWindowPos │ WINDOWPOS │ WM_WINDOWPOSCHANGING             │ │
+│  │    SetWindowPos │ WINDOWPOS │ WmWindowPosChanging             │ │
 │  └────────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────┘
                                  ▲
@@ -42,7 +42,7 @@
 │                  2-Layer Message-Driven System                    │
 ├───────────────────────────────────────────────────────────────────┤
 │                                                                   │
-│  Layer 1: WM_WINDOWPOSCHANGING Interception (Primary - 87%)      │
+│  Layer 1: WmWindowPosChanging Interception (Primary - 87%)      │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │  • Intercepts BEFORE z-order change occurs              │    │
 │  │  • Modifies WINDOWPOS structure in-place                │    │
@@ -50,7 +50,7 @@
 │  │  • Handles 87% of enforcement needs                     │    │
 │  └─────────────────────────────────────────────────────────┘    │
 │                          ▼                                        │
-│  Layer 2: WM_ACTIVATEAPP Handler (Secondary - 13%)               │
+│  Layer 2: WmActivateApp Handler (Secondary - 13%)               │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │  • Triggers on application activation                   │    │
 │  │  • Catches user interactions (taskbar, Alt+Tab)         │    │
@@ -97,7 +97,7 @@
                              │   │ • Top = screenHeight - windowHeight  │
                              │   │ • Width = screenWidth                │
                              │   │ • Height = 46                        │
-                             │   │ • SetWindowPos(HWND_TOPMOST)         │
+                             │   │ • SetWindowPos(HwndTopMost)         │
                              │   └──────────────────────────────────────┘
                              │
                              └─► SyncStatsFromMainViewModel()
@@ -135,14 +135,14 @@
                              │
                              ▼
               ┌──────────────────────────────┐
-              │   Windows Shell (Explorer)   │
-              │  Attempts to activate taskbar│
-              └──────────────┬───────────────┘
+              │   Windows Explorer             │
+              │  Attempts to activate taskbar  │
+              └──────────────┬─────────────────┘
                              │
                              ▼
            ┌─────────────────────────────────────┐
            │  Windows sends messages:            │
-           │  • WM_WINDOWPOSCHANGING             │
+           │  • WmWindowPosChanging             │
            │  • lParam → WINDOWPOS structure     │
            └──────────────┬──────────────────────┘
                           │
@@ -152,7 +152,7 @@
         │   IntPtr WndProc(hwnd, msg, wParam, lParam) │
         └──────────────┬──────────────────────────────┘
                        │
-                       ├─► Check: msg == WM_WINDOWPOSCHANGING?
+                       ├─► Check: msg == WmWindowPosChanging?
                        │   YES ──┐
                        │         │
                        │         ▼
@@ -165,14 +165,14 @@
                        │              ▼
                        │   ┌──────────────────────────────────┐
                        │   │ Check: Is z-order changing?      │
-                       │   │ (flags & SWP_NOZORDER) == 0?     │
+                       │   │ (flags & SwpNozorder) == 0?     │
                        │   └──────────┬───────────────────────┘
                        │              │ YES
                        │              ▼
                        │   ┌──────────────────────────────────┐
                        │   │ Modify structure:                │
                        │   │ windowPos.hwndInsertAfter =      │
-                       │   │   HWND_TOPMOST (-1)              │
+                       │   │   HwndTopMost (-1)              │
                        │   └──────────┬───────────────────────┘
                        │              │
                        │              ▼
@@ -195,7 +195,7 @@
                                     ▼                         │
               ┌──────────────────────────────────────┐        │
               │  Windows applies MODIFIED z-order    │        │
-              │  Uses HWND_TOPMOST instead of        │        │
+              │  Uses HwndTopMost instead of        │        │
               │  taskbar's requested position        │        │
               └──────────────┬───────────────────────┘        │
                              │                                │
@@ -209,7 +209,7 @@
 
 ---
 
-## WM_ACTIVATEAPP Flow (Secondary Defense)
+## WmActivateApp Flow (Secondary Defense)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -219,7 +219,7 @@
                              │
                              ▼
               ┌──────────────────────────────┐
-              │  Windows sends WM_ACTIVATEAPP│
+              │  Windows sends WmActivateApp│
               │  to StatsView window         │
               └──────────────┬───────────────┘
                              │
@@ -229,15 +229,15 @@
         │   IntPtr WndProc(hwnd, msg, wParam, lParam) │
         └──────────────┬──────────────────────────────┘
                        │
-                       ├─► Check: msg == WM_ACTIVATEAPP?
+                       ├─► Check: msg == WmActivateApp?
                        │   YES ──┐
                        │         │
                        │         ▼
                        │   ┌─────────────────────────────────┐
                        │   │     EnsureTopmost()             │
                        │   │  1. IsWindow(windowHandle)      │
-                       │   │  2. SetWindowPos(HWND_TOPMOST)  │
-                       │   │  [DBG] WM_ACTIVATEAPP enforcing │
+                       │   │  2. SetWindowPos(HwndTopMost)  │
+                       │   │  [DBG] WmActivateApp enforcing │
                        │   └──────────┬──────────────────────┘
                        │              │
                        │              ▼
@@ -290,8 +290,8 @@
                              ├─► Step 3: Log Message Frequency
                                  ┌──────────────────────────────────┐
                                  │ Log message frequency summary    │
-                                 │ [INF] WM_WINDOWPOSCHANGING: XX   │
-                                 │ [INF] WM_ACTIVATEAPP: XX         │
+                                 │ [INF] WmWindowPosChanging: XX   │
+                                 │ [INF] WmActivateApp: XX         │
                                  └──────────────────────────────────┘
                              │
                              └─► Step 4: Call Base
@@ -525,7 +525,7 @@
 │           │                 │                 │                 │
 │           ▼                 ▼                 ▼                 │
 │  ┌────────────────┐ ┌──────────────┐ ┌────────────────┐        │
-│  │  WndProc Hook  │ │ WM_ACTIVATE  │ │  Timer Tick    │        │
+│  │  WndProc Hook  │ │ WmActivate  │ │  Timer Tick    │        │
 │  │  Intercepts    │ │  Handler     │ │  (Every 2s)    │        │
 │  │  <1μs          │ │  <100μs      │ │  <2s delay     │        │
 │  └────────┬───────┘ └──────┬───────┘ └────────┬───────┘        │
@@ -539,7 +539,7 @@
 │                             │                                    │
 │                             ▼                                    │
 │                    ┌─────────────────┐                           │
-│                    │  HWND_TOPMOST   │                           │
+│                    │  HwndTopMost   │                           │
 │                    │   Enforced ✓    │                           │
 │                    └─────────────────┘                           │
 │                                                                   │

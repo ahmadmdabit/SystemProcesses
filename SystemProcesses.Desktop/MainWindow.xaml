@@ -241,20 +241,46 @@
                 </StackPanel>
             </StackPanel>
 
-            <TextBox
+            <Border
                 Grid.Column="2"
                 Margin="0,0,5,0"
-                Padding="2"
-                VerticalAlignment="Center"
-                Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                ToolTip="Filter the process by Process name or Id" />
-            <ComboBox
+                VerticalAlignment="Stretch"
+                Background="White"
+                BorderBrush="#CCC"
+                BorderThickness="1"
+                CornerRadius="6">
+                <TextBox
+                    Margin="0"
+                    Padding="2"
+                    VerticalAlignment="Center"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                    ToolTip="Filter the process by Process name or Id" />
+            </Border>
+
+            <Border
                 Grid.Column="3"
-                Padding="2"
                 VerticalAlignment="Center"
-                ItemsSource="{Binding RefreshIntervals}"
-                SelectedItem="{Binding SelectedRefreshInterval}"
-                ToolTip="Refresh Rate" />
+                Background="{StaticResource ComboBox.Static.Background}"
+                BorderBrush="#CCC"
+                BorderThickness="1"
+                ClipToBounds="True"
+                CornerRadius="6">
+                <ComboBox
+                    Margin="2"
+                    Padding="2"
+                    VerticalAlignment="Center"
+                    Background="Transparent"
+                    BorderBrush="Transparent"
+                    BorderThickness="0"
+                    ItemsSource="{Binding RefreshIntervals}"
+                    SelectedItem="{Binding SelectedRefreshInterval}"
+                    SnapsToDevicePixels="True"
+                    ToolTip="Refresh Rate" />
+            </Border>
+
+
         </Grid>
 
         <!--  Process Tree  -->

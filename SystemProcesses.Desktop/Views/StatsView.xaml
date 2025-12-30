@@ -16,7 +16,6 @@
     ResizeMode="NoResize"
     ShowInTaskbar="False"
     SizeToContent="Width"
-    Topmost="True"
     WindowStyle="None"
     mc:Ignorable="d">
 
