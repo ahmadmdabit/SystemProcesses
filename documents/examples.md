@@ -769,6 +769,70 @@ public void SyncProcessCollection(List<ProcessInfo> newData)
 
 ---
 
+### Example 5: Multi-Monitor Dialog Positioning
+
+**Pattern**: Use native Win32 APIs to position dialogs on the correct monitor in multi-monitor setups.
+
+**Implementation**:
+```csharp
+private void EnsureOnScreen(Rect ownerBounds)
+{
+    // Find the monitor that contains the owner window center point
+    var ownerCenter = new SystemPrimitives.Point
+    {
+        x = (int)(ownerBounds.Left + ownerBounds.Width / 2),
+        y = (int)(ownerBounds.Top + ownerBounds.Height / 2)
+    };
+
+    // Get monitor handle for the point where owner window is located
+    IntPtr hMonitor = SystemPrimitives.MonitorFromPoint(
+        ownerCenter, 
+        SystemPrimitives.MonitorDefaultToNearest);
+
+    if (hMonitor != IntPtr.Zero)
+    {
+        // Get monitor info including work area (excludes taskbar)
+        var monitorInfo = new SystemPrimitives.MonitorInfo
+        {
+            cbSize = (uint)Marshal.SizeOf<SystemPrimitives.MonitorInfo>()
+        };
+
+        if (SystemPrimitives.GetMonitorInfoW(hMonitor, ref monitorInfo))
+        {
+            var workArea = monitorInfo.rcWork;
+
+            // Adjust if off-screen horizontally
+            if (this.Left < workArea.left)
+                this.Left = workArea.left;
+            else if (this.Left + this.ActualWidth > workArea.right)
+                this.Left = workArea.right - this.ActualWidth;
+
+            // Adjust if off-screen vertically
+            if (this.Top < workArea.top)
+                this.Top = workArea.top;
+            else if (this.Top + this.ActualHeight > workArea.bottom)
+                this.Top = workArea.bottom - this.ActualHeight;
+        }
+    }
+}
+```
+
+**Key Points**:
+- Uses owner window center point to determine target monitor
+- Applies work area bounds (excludes taskbar) for positioning
+- Falls back to nearest monitor if point is off-screen
+- Zero dependencies (uses native Win32 APIs only)
+
+**Benefits**:
+- Dialogs appear on correct monitor in multi-monitor setups
+- Taskbar-aware positioning prevents overlap
+- No System.Windows.Forms dependency
+- <1ms overhead per dialog show
+
+**Reference**: See `Helpers/LiteDialog.cs` for complete implementation.
+
+---
+
 ## Threading & Async Patterns
 
 ### Example 1: Producer-Consumer with SemaphoreSlim

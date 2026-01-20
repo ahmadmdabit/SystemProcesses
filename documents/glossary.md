@@ -198,7 +198,10 @@ Modern .NET 7+ P/Invoke attribute using source generators for better performance
 .NET query syntax. Avoided in hot paths due to allocations (enumerators, delegates, intermediate collections).
 
 ### LiteDialog
-Project-specific dialog service that creates Windows programmatically without XAML to minimize overhead.
+Project-specific dialog service that creates Windows programmatically without XAML to minimize overhead. Implements multi-monitor support via native Win32 APIs (`MonitorFromPoint`, `GetMonitorInfoW`) and thread-safety via `Dispatcher.CheckAccess()` deadlock prevention.
+
+### LiteDialog Multi-Monitor Support
+Feature ensuring dialogs appear on the same monitor as the owner window in multi-monitor setups. Uses `MonitorFromPoint()` to find the correct monitor and `GetMonitorInfoW()` to get taskbar-aware work area bounds. Implemented without System.Windows.Forms dependency, maintaining zero-dependency architecture.
 
 ### LOH (Large Object Heap)
 Separate heap for objects ≥85KB. Not compacted by GC, causing fragmentation. Avoided via unmanaged buffers.
@@ -212,6 +215,12 @@ Separate heap for objects ≥85KB. Not compacted by GC, causing fragmentation. A
 
 ### MEMORYSTATUSEX
 Windows structure containing memory statistics (total/available physical and virtual memory).
+
+### MonitorFromPoint
+Win32 API function that retrieves a handle to the display monitor containing a specified point. Used by LiteDialog for multi-monitor support.
+
+### MonitorInfo
+Windows structure containing monitor information including display rectangle and work area (taskbar-aware bounds).
 
 ### MVVM (Model-View-ViewModel)
 Design pattern separating UI (View), presentation logic (ViewModel), and data (Model).

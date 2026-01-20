@@ -661,4 +661,80 @@ internal static partial class SystemPrimitives
     #endregion Methods
 
     #endregion Disk Information (kernel32.dll)
+
+    #region Monitor Information (user32.dll)
+
+    #region Constants
+
+    /// <summary>Monitor default: Returns NULL if point is not on any monitor.</summary>
+    public const uint MonitorDefaultToNull = 0x00000000;
+
+    /// <summary>Monitor default: Returns handle to primary monitor if point is not on any monitor.</summary>
+    public const uint MonitorDefaultToPrimary = 0x00000001;
+
+    /// <summary>Monitor default: Returns handle to nearest monitor if point is not on any monitor.</summary>
+    public const uint MonitorDefaultToNearest = 0x00000002;
+
+    #endregion Constants
+
+    #region Structures
+
+    /// <summary>
+    /// Contains information about a display monitor.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    public struct MonitorInfo
+    {
+        /// <summary>Size of the structure, in bytes.</summary>
+        public uint cbSize;
+
+        /// <summary>Rectangle that specifies the display monitor rectangle, in virtual-screen coordinates.</summary>
+        public Rect rcMonitor;
+
+        /// <summary>Rectangle that specifies the work area rectangle of the display monitor, in virtual-screen coordinates.</summary>
+        public Rect rcWork;
+
+        /// <summary>Attributes of the display monitor (MONITORINFOF_PRIMARY = 0x00000001).</summary>
+        public uint dwFlags;
+    }
+
+    /// <summary>
+    /// Defines a point with x and y coordinates.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Point
+    {
+        /// <summary>X-coordinate of the point.</summary>
+        public int x;
+
+        /// <summary>Y-coordinate of the point.</summary>
+        public int y;
+    }
+
+    #endregion Structures
+
+    #region Methods
+
+    /// <summary>
+    /// Retrieves a handle to the display monitor that contains a specified point.
+    /// </summary>
+    /// <param name="pt">Point structure that specifies the point of interest in virtual-screen coordinates.</param>
+    /// <param name="dwFlags">Determines the function's return value if the point is not contained within any display monitor.</param>
+    /// <returns>Handle to the monitor that contains the point, or NULL/primary/nearest based on dwFlags.</returns>
+    [LibraryImport("user32.dll")]
+    public static partial IntPtr MonitorFromPoint(Point pt, uint dwFlags);
+
+    /// <summary>
+    /// Retrieves information about a display monitor.
+    /// </summary>
+    /// <param name="hMonitor">Handle to the display monitor of interest.</param>
+    /// <param name="lpmi">Pointer to a MONITORINFO structure that receives information about the specified display monitor.</param>
+    /// <returns>If the function succeeds, the return value is nonzero.</returns>
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetMonitorInfoW(IntPtr hMonitor, ref MonitorInfo lpmi);
+
+    #endregion Methods
+
+    #endregion Monitor Information (user32.dll)
 }

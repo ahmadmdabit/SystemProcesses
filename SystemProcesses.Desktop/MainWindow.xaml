@@ -200,29 +200,42 @@
                 <StackPanel.ToolTip>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
-                            <TextBlock FontWeight="Bold" Text="{StaticResource LabelProcesses}" />
+                            <TextBlock
+                                Margin="0,0,5,0"
+                                FontWeight="Bold"
+                                Text="{StaticResource LabelProcesses}" />
                             <TextBlock Text="{Binding TotalProcessCount}" />
                         </StackPanel>
 
                         <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
-                            <TextBlock FontWeight="Bold" Text="{StaticResource LabelThreads}" />
+                            <TextBlock
+                                Margin="0,0,5,0"
+                                FontWeight="Bold"
+                                Text="{StaticResource LabelThreads}" />
                             <TextBlock Text="{Binding TotalThreadCount}" />
                         </StackPanel>
 
                         <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
-                            <TextBlock FontWeight="Bold" Text="{StaticResource LabelHandles}" />
+                            <TextBlock
+                                Margin="0,0,5,0"
+                                FontWeight="Bold"
+                                Text="{StaticResource LabelHandles}" />
                             <TextBlock Text="{Binding TotalHandleCount}" />
                         </StackPanel>
                     </StackPanel>
                 </StackPanel.ToolTip>
 
                 <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
-                    <TextBlock FontWeight="Bold" Text="{StaticResource LabelCPU}" />
+                    <TextBlock
+                        Margin="0,0,5,0"
+                        FontWeight="Bold"
+                        Text="{StaticResource LabelCPU}" />
                     <TextBlock Text="{Binding TotalCpuUsage, Converter={StaticResource CpuPercentageConverter}}" TextAlignment="Right" />
                 </StackPanel>
 
                 <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
                     <TextBlock
+                        Margin="0,0,5,0"
                         FontWeight="Bold"
                         Text="{StaticResource LabelRAM}"
                         ToolTip="{StaticResource TooltipRAM}" />
@@ -232,6 +245,7 @@
 
                 <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
                     <TextBlock
+                        Margin="0,0,5,0"
                         FontWeight="Bold"
                         Text="{StaticResource LabelVM}"
                         ToolTip="{StaticResource TooltipVM}" />
@@ -240,12 +254,18 @@
                 </StackPanel>
 
                 <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
-                    <TextBlock FontWeight="Bold" Text="{StaticResource LabelDisk}" />
+                    <TextBlock
+                        Margin="0,0,5,0"
+                        FontWeight="Bold"
+                        Text="{StaticResource LabelDisk}" />
                     <TextBlock Text="{Binding DiskActivePercent, StringFormat='{}{0:F0}%'}" TextAlignment="Right" />
                 </StackPanel>
 
                 <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
-                    <TextBlock FontWeight="Bold" Text="{StaticResource LabelStorage}" />
+                    <TextBlock
+                        Margin="0,0,5,0"
+                        FontWeight="Bold"
+                        Text="{StaticResource LabelStorage}" />
                     <TextBlock Text="{Binding StorageStatsText}" TextAlignment="Right" />
                 </StackPanel>
             </StackPanel>

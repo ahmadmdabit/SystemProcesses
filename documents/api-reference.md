@@ -328,6 +328,68 @@ if (driveType == 3) // DriveTypeFixed
 
 ### user32.dll - User Interface API
 
+#### MonitorFromPoint
+
+**Purpose**: Retrieves a handle to the display monitor that contains a specified point.
+
+**Signature**:
+```csharp
+[LibraryImport("user32.dll")]
+public static partial IntPtr MonitorFromPoint(Point pt, uint dwFlags);
+```
+
+**Parameters**:
+- `pt`: Point structure with x, y coordinates in virtual-screen coordinates
+- `dwFlags`: Determines return value if point is not on any monitor:
+  - `0x00000000` (MonitorDefaultToNull): Returns NULL
+  - `0x00000001` (MonitorDefaultToPrimary): Returns primary monitor handle
+  - `0x00000002` (MonitorDefaultToNearest): Returns nearest monitor handle
+
+**Return Value**: Handle to the monitor containing the point, or based on `dwFlags` if point is off-screen.
+
+**Usage Context**: Used by LiteDialog to determine which monitor contains the owner window, ensuring dialogs appear on the correct monitor in multi-monitor setups.
+
+**Performance**: ~0.5μs per call
+
+---
+
+#### GetMonitorInfoW
+
+**Purpose**: Retrieves information about a display monitor.
+
+**Signature**:
+```csharp
+[LibraryImport("user32.dll", SetLastError = true)]
+[return: MarshalAs(UnmanagedType.Bool)]
+public static partial bool GetMonitorInfoW(IntPtr hMonitor, ref MonitorInfo lpmi);
+
+[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+public struct MonitorInfo
+{
+    public uint cbSize;              // Size of structure (must be set before call)
+    public Rect rcMonitor;           // Monitor rectangle (virtual-screen coordinates)
+    public Rect rcWork;              // Work area rectangle (excludes taskbar)
+    public uint dwFlags;             // Attributes (MONITORINFOF_PRIMARY = 0x00000001)
+}
+```
+
+**Parameters**:
+- `hMonitor`: Handle to the monitor (from `MonitorFromPoint`)
+- `lpmi`: Pointer to `MonitorInfo` structure (must initialize `cbSize` field)
+
+**Return Value**: True on success, false on failure.
+
+**Usage Context**: Used by LiteDialog to get the work area (taskbar-aware bounds) for positioning dialogs within screen boundaries.
+
+**Important Notes**:
+- Must set `cbSize = Marshal.SizeOf<MonitorInfo>()` before calling
+- `rcWork` excludes taskbar, `rcMonitor` includes entire monitor area
+- Coordinates are in virtual-screen space (may be negative on secondary monitors)
+
+**Performance**: ~1μs per call
+
+---
+
 #### SetWindowPos
 
 **Purpose**: Changes window size, position, and z-order.

@@ -13,7 +13,7 @@ The `SystemPrimitives` class serves as the **Platform Invocation (P/Invoke)** la
 
 ## 2. Architecture & Categorization
 
-The class is partitioned into five functional regions:
+The class is partitioned into six functional regions:
 
 1.  **Process Information (`ntdll.dll`):** The core engine. Retrieves the entire process tree in a single system call.
 2.  **Service Enumeration (`advapi32.dll`):** Identifies which processes are Windows Services.
@@ -21,6 +21,7 @@ The class is partitioned into five functional regions:
 4.  **Window Management (`user32.dll`):** UI thread window handle retrieval.
 5.  **Performance Data Helper (`pdh.dll`):** High-level counters for Disk I/O (specifically Idle Time).
 6.  **Disk Information (`kernel32.dll`):** Storage availability and capacity statistics.
+7.  **Monitor Information (`user32.dll`):** Multi-monitor detection and display information for dialog positioning.
 
 ---
 
@@ -103,13 +104,72 @@ Retrieves a bitmask representing the currently available disk drives.
 
 #### `GetDriveTypeW`
 Determines the drive type (Fixed, Removable, Network, etc.) for a specific root path.
-*   **Input:** Requires a pointer to a null-exitd string (e.g., `C:\`).
+*   **Input:** Requires a pointer to a null-exited string (e.g., `C:\`).
 *   **Usage:** Filter for `DriveTypeFixed` (3) to avoid blocking on network or removable drives.
 
 #### `GetDiskFreeSpaceExW`
 Retrieves storage capacity and free space.
 *   **Parameters:** Uses `out ulong` for 64-bit size values, avoiding the 2GB limit of older APIs.
 *   **Safety:** Returns `bool` (non-zero) on success.
+
+---
+
+### 3.5 Monitor Information (`user32.dll`)
+
+Used to detect and query display monitors for multi-monitor dialog positioning without managed dependencies.
+
+#### `MonitorFromPoint`
+Retrieves a handle to the display monitor that contains a specified point.
+*   **Input:** `Point` structure with x/y coordinates in virtual-screen space.
+*   **dwFlags:** Determines behavior when point is not on any monitor:
+    *   `MonitorDefaultToNull` (0x00000000): Returns NULL
+    *   `MonitorDefaultToPrimary` (0x00000001): Returns primary monitor
+    *   `MonitorDefaultToNearest` (0x00000002): Returns nearest monitor
+*   **Return Value:** Handle to monitor (`HMONITOR`) or NULL/primary/nearest based on flags.
+*   **Usage:** Used in `LiteDialog.EnsureOnScreen()` to find which monitor contains the owner window.
+
+#### `GetMonitorInfoW`
+Retrieves information about a display monitor including work area (excludes taskbar).
+*   **Input:** Monitor handle from `MonitorFromPoint()` and pointer to `MonitorInfo` structure.
+*   **MonitorInfo Structure:**
+    *   `cbSize`: Must be set to `sizeof(MonitorInfo)` before call
+    *   `rcMonitor`: Full monitor rectangle in virtual-screen coordinates
+    *   `rcWork`: Work area rectangle (excludes taskbar and docked windows)
+    *   `dwFlags`: Monitor attributes (0x00000001 = primary monitor)
+*   **Return Value:** `bool` (non-zero) on success.
+*   **Usage:** Used to get work area bounds for dialog positioning and bounds checking.
+
+#### `Point` Structure
+Defines a point with x and y coordinates for monitor detection.
+```csharp
+[StructLayout(LayoutKind.Sequential)]
+public struct Point
+{
+    public int x;  // X-coordinate
+    public int y;  // Y-coordinate
+}
+```
+
+#### `MonitorInfo` Structure
+Contains information about a display monitor.
+```csharp
+[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+public struct MonitorInfo
+{
+    public uint cbSize;        // Size of structure in bytes
+    public Rect rcMonitor;     // Monitor rectangle (full bounds)
+    public Rect rcWork;        // Work area rectangle (excludes taskbar)
+    public uint dwFlags;       // Monitor attributes
+}
+```
+
+**Multi-Monitor Pattern:**
+1.  Calculate owner window center point: `(Left + Width/2, Top + Height/2)`
+2.  Call `MonitorFromPoint(centerPoint, MonitorDefaultToNearest)` to get monitor handle
+3.  Call `GetMonitorInfoW(hMonitor, ref monitorInfo)` to get work area bounds
+4.  Apply bounds checking using `rcWork` to ensure dialog stays within visible area
+
+This approach eliminates the need for `System.Windows.Forms.Screen` dependency while providing accurate multi-monitor support with zero managed allocations.
 
 ---
 

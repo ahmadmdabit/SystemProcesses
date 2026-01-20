@@ -131,6 +131,7 @@ This project has been significantly enhanced with:
 *   ✅ **Magic Numbers Extraction** - Named constants for configuration values (InitialBufferSize, MaxBufferSize, etc.)
 *   ✅ **Resource Cleanup** - Finalizer for ImageLoaderService ensuring proper disposal
 *   ✅ **Result<T> Type Safety** - Discriminated union pattern for explicit error handling in icon loading and other operations
+*   ✅ **LiteDialog Enhancements** - Fixed critical deadlock risk, added multi-monitor support via native Win32 APIs, ensured thread-safe brush initialization, and implemented proper resource disposal
 *   ✅ **Production-Ready Verification** - Complete PFPSO-ShipIt verification checklist with all systems passing
 
 See [../documents/learnings.md](../documents/learnings.md) for technical decisions.
