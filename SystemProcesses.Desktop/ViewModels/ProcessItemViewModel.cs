@@ -52,13 +52,20 @@ public partial class ProcessItemViewModel : ObservableObject, IEquatable<Process
     private async Task LoadIconAsync()
     {
         // Offload GDI+ extraction to ThreadPool to avoid UI freeze
-        var icon = await Task.Run(() => IconCache.GetIcon(ProcessInfo.ProcessPath));
+        var result = await Task.Run(() => IconCache.GetIcon(ProcessInfo.ProcessPath));
 
-        if (icon != null)
-        {
-            // Marshal back to UI thread (ObservableProperty handles PropertyChanged)
-            Icon = icon;
-        }
+        // Extract ImageSource from Result<ImageSource> using Match pattern
+        result.Match(
+            onSuccess: imageSource =>
+            {
+                // Marshal back to UI thread (ObservableProperty handles PropertyChanged)
+                Icon = imageSource;
+            },
+            onFailure: (error, context) =>
+            {
+                // Log failure but continue - icon loading is non-critical
+                // Error already logged by IconCache
+            });
     }
 
     public void Refresh()

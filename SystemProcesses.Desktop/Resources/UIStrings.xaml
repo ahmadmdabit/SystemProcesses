@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!--  Styles for StatsView  -->
+    <Style x:Key="GreenTextBlock" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="#00EE00" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontFamily" Value="Consolas" />
+        <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style
+        x:Key="GreenTextBlock2"
+        BasedOn="{StaticResource GreenTextBlock}"
+        TargetType="TextBlock">
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="11" />
+    </Style>
+
+    <Style x:Key="IconBorder" TargetType="Border">
+        <Setter Property="Background" Value="#333333" />
+        <Setter Property="BorderBrush" Value="#444444" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="5" />
+        <Setter Property="Padding" Value="5,3" />
+        <Setter Property="Margin" Value="0,0,3,0" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!--  Application Title and Tray  -->
+    <sys:String x:Key="AppTitle">System Processes</sys:String>
+    <sys:String x:Key="TrayToolTipText">System Processes</sys:String>
+
+    <!--  Context Menu Items  -->
+    <sys:String x:Key="ContextMenuShow">Show</sys:String>
+    <sys:String x:Key="ContextMenuExit">Exit</sys:String>
+
+    <!--  Toolbar Buttons  -->
+    <sys:String x:Key="ButtonGracefulEnd">Graceful End</sys:String>
+    <sys:String x:Key="ButtonGracefulEndTree">Graceful End Tree</sys:String>
+    <sys:String x:Key="ButtonEnd">End</sys:String>
+    <sys:String x:Key="ButtonEndTree">End Tree</sys:String>
+    <sys:String x:Key="ButtonDetails">Details</sys:String>
+    <sys:String x:Key="ButtonOpenDirectory">Open Directory</sys:String>
+    <sys:String x:Key="ButtonIsolateTree">Isolate Tree</sys:String>
+
+    <!--  Toolbar Tooltips  -->
+    <sys:String x:Key="TooltipGracefulEnd">Requests the process to close (like clicking X)</sys:String>
+    <sys:String x:Key="TooltipGracefulEndTree">Requests the process tree to close (like clicking X)</sys:String>
+    <sys:String x:Key="TooltipEnd">Forcefully stops the process</sys:String>
+    <sys:String x:Key="TooltipEndTree">Forcefully stops the process tree</sys:String>
+    <sys:String x:Key="TooltipSearchBox">Filter the process by Process name or Id</sys:String>
+    <sys:String x:Key="TooltipRefreshRate">Refresh Rate</sys:String>
+
+    <!--  Status Bar Labels  -->
+    <sys:String x:Key="LabelProcesses">Processes:</sys:String>
+    <sys:String x:Key="LabelThreads">Threads:</sys:String>
+    <sys:String x:Key="LabelHandles">Handles:</sys:String>
+    <sys:String x:Key="LabelCPU">CPU:</sys:String>
+    <sys:String x:Key="LabelRAM">RAM:</sys:String>
+    <sys:String x:Key="LabelVM">VM:</sys:String>
+    <sys:String x:Key="LabelDisk">Disk:</sys:String>
+    <sys:String x:Key="LabelStorage">Storage:</sys:String>
+
+    <!--  Status Bar Tooltips  -->
+    <sys:String x:Key="TooltipRAM">Available Physical Memory</sys:String>
+    <sys:String x:Key="TooltipVM">Available Virtual Memory (Commit Limit)</sys:String>
+
+    <!--  Context Menu Items (TreeView)  -->
+    <sys:String x:Key="ContextMenuGracefulEnd">Graceful End</sys:String>
+    <sys:String x:Key="ContextMenuGracefulEndTree">Graceful End Tree</sys:String>
+    <sys:String x:Key="ContextMenuEnd">End</sys:String>
+    <sys:String x:Key="ContextMenuEndTree">End Tree</sys:String>
+    <sys:String x:Key="ContextMenuIsolateTree">Isolate Tree</sys:String>
+    <sys:String x:Key="ContextMenuDetails">Details</sys:String>
+    <sys:String x:Key="ContextMenuCopyPath">Copy Path</sys:String>
+    <sys:String x:Key="ContextMenuOpenDirectory">Open Directory</sys:String>
+
+    <!--  Stats View Labels  -->
+    <sys:String x:Key="StatsViewCPU">CPU</sys:String>
+    <sys:String x:Key="StatsViewRAM">RAM</sys:String>
+    <sys:String x:Key="StatsViewVM">VM</sys:String>
+    <sys:String x:Key="StatsViewDisk">Disk</sys:String>
+
+    <!--  Tray Popup Labels  -->
+    <sys:String x:Key="TrayPopupTop5Processes">Top 5 Processes:</sys:String>
+
+</ResourceDictionary>

@@ -7,7 +7,7 @@
     xmlns:tb="clr-namespace:H.NotifyIcon;assembly=H.NotifyIcon.Wpf"
     xmlns:viewmodels="clr-namespace:SystemProcesses.Desktop.ViewModels"
     x:Name="uiRoot"
-    Title="System Processes"
+    Title="{StaticResource AppTitle}"
     Width="960"
     Height="500"
     Closing="uiRootClosing"
@@ -19,6 +19,15 @@
     <Window.DataContext>
         <viewmodels:MainViewModel />
     </Window.DataContext>
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Resources/UIStrings.xaml" />
+                <ResourceDictionary Source="/Resources/Styles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -34,17 +43,17 @@
             DoubleClickCommand="{Binding ShowApplicationCommand}"
             IconSource="{Binding CpuTrayIconImageSource}"
             MenuActivation="RightClick"
-            ToolTipText="System Processes">
+            ToolTipText="{StaticResource TrayToolTipText}">
 
             <tb:TaskbarIcon.ContextMenu>
                 <ContextMenu Style="{StaticResource ContextMenuStyle}">
                     <MenuItem
                         Command="{Binding ShowApplicationCommand}"
-                        Header="Show"
+                        Header="{StaticResource ContextMenuShow}"
                         Style="{StaticResource MenuItemStyle}" />
                     <MenuItem
                         Command="{Binding ExitApplicationCommand}"
-                        Header="Exit"
+                        Header="{StaticResource ContextMenuExit}"
                         Style="{StaticResource MenuItemStyle}" />
                 </ContextMenu>
             </tb:TaskbarIcon.ContextMenu>
@@ -114,7 +123,7 @@
                                     Margin="0,0,0,5"
                                     FontWeight="Bold"
                                     Foreground="#00EE00"
-                                    Text="Top 5 Processes:"
+                                    Text="{StaticResource TrayPopupTop5Processes}"
                                     TextWrapping="Wrap" />
 
                                 <TextBlock
@@ -139,36 +148,36 @@
             <!--  New Feature: Graceful End  -->
             <Button
                 Command="{Binding GracefulEndProcessCommand}"
-                Content="Graceful End"
+                Content="{StaticResource ButtonGracefulEnd}"
                 Style="{StaticResource ToolbarButtonStyle}"
-                ToolTip="Requests the process to close (like clicking X)" />
+                ToolTip="{StaticResource TooltipGracefulEnd}" />
             <Button
                 Command="{Binding GracefulEndProcessTreeCommand}"
-                Content="Graceful End Tree"
+                Content="{StaticResource ButtonGracefulEndTree}"
                 Style="{StaticResource ToolbarButtonStyle}"
-                ToolTip="Requests the process tree to close (like clicking X)" />
+                ToolTip="{StaticResource TooltipGracefulEndTree}" />
             <Button
                 Command="{Binding EndProcessCommand}"
-                Content="End"
+                Content="{StaticResource ButtonEnd}"
                 Style="{StaticResource ToolbarButtonStyle}"
-                ToolTip="Forcefully stops the process" />
+                ToolTip="{StaticResource TooltipEnd}" />
             <Button
                 Command="{Binding EndProcessTreeCommand}"
-                Content="End Tree"
+                Content="{StaticResource ButtonEndTree}"
                 Style="{StaticResource ToolbarButtonStyle}"
-                ToolTip="Forcefully stops the process tree" />
+                ToolTip="{StaticResource TooltipEndTree}" />
             <Separator />
             <Button
                 Command="{Binding ShowProcessDetailsCommand}"
-                Content="Details"
+                Content="{StaticResource ButtonDetails}"
                 Style="{StaticResource ToolbarButtonStyle}" />
             <Button
                 Command="{Binding OpenProcessDirectoryCommand}"
-                Content="Open Directory"
+                Content="{StaticResource ButtonOpenDirectory}"
                 Style="{StaticResource ToolbarButtonStyle}" />
             <Separator />
             <ToggleButton
-                Content="Isolate Tree"
+                Content="{StaticResource ButtonIsolateTree}"
                 IsChecked="{Binding IsTreeIsolated}"
                 Style="{StaticResource ToggleButtonStyle}" />
         </ToolBar>
@@ -191,32 +200,32 @@
                 <StackPanel.ToolTip>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
-                            <TextBlock FontWeight="Bold" Text="Processes: " />
+                            <TextBlock FontWeight="Bold" Text="{StaticResource LabelProcesses}" />
                             <TextBlock Text="{Binding TotalProcessCount}" />
                         </StackPanel>
 
                         <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
-                            <TextBlock FontWeight="Bold" Text="Threads: " />
+                            <TextBlock FontWeight="Bold" Text="{StaticResource LabelThreads}" />
                             <TextBlock Text="{Binding TotalThreadCount}" />
                         </StackPanel>
 
                         <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
-                            <TextBlock FontWeight="Bold" Text="Handles: " />
+                            <TextBlock FontWeight="Bold" Text="{StaticResource LabelHandles}" />
                             <TextBlock Text="{Binding TotalHandleCount}" />
                         </StackPanel>
                     </StackPanel>
                 </StackPanel.ToolTip>
 
                 <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
-                    <TextBlock FontWeight="Bold" Text="CPU: " />
+                    <TextBlock FontWeight="Bold" Text="{StaticResource LabelCPU}" />
                     <TextBlock Text="{Binding TotalCpuUsage, Converter={StaticResource CpuPercentageConverter}}" TextAlignment="Right" />
                 </StackPanel>
 
                 <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
                     <TextBlock
                         FontWeight="Bold"
-                        Text="RAM: "
-                        ToolTip="Available Physical Memory" />
+                        Text="{StaticResource LabelRAM}"
+                        ToolTip="{StaticResource TooltipRAM}" />
                     <TextBlock Text="{Binding AvailablePhysicalMemory, Converter={StaticResource BytesToAutoFormatConverter}}" />
                     <TextBlock Text="{Binding RamFreePercentage, StringFormat=' ({0:F0}%)'}" />
                 </StackPanel>
@@ -224,19 +233,19 @@
                 <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
                     <TextBlock
                         FontWeight="Bold"
-                        Text="VM: "
-                        ToolTip="Available Virtual Memory (Commit Limit)" />
+                        Text="{StaticResource LabelVM}"
+                        ToolTip="{StaticResource TooltipVM}" />
                     <TextBlock Text="{Binding AvailableCommitLimit, Converter={StaticResource BytesToAutoFormatConverter}}" />
                     <TextBlock Text="{Binding VmFreePercentage, StringFormat=' ({0:F0}%)'}" />
                 </StackPanel>
 
                 <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
-                    <TextBlock FontWeight="Bold" Text="Disk: " />
+                    <TextBlock FontWeight="Bold" Text="{StaticResource LabelDisk}" />
                     <TextBlock Text="{Binding DiskActivePercent, StringFormat='{}{0:F0}%'}" TextAlignment="Right" />
                 </StackPanel>
 
                 <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
-                    <TextBlock FontWeight="Bold" Text="Storage: " />
+                    <TextBlock FontWeight="Bold" Text="{StaticResource LabelStorage}" />
                     <TextBlock Text="{Binding StorageStatsText}" TextAlignment="Right" />
                 </StackPanel>
             </StackPanel>
@@ -256,7 +265,7 @@
                     Background="Transparent"
                     BorderThickness="0"
                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                    ToolTip="Filter the process by Process name or Id" />
+                    ToolTip="{StaticResource TooltipSearchBox}" />
             </Border>
 
             <Border
@@ -277,7 +286,7 @@
                     ItemsSource="{Binding RefreshIntervals}"
                     SelectedItem="{Binding SelectedRefreshInterval}"
                     SnapsToDevicePixels="True"
-                    ToolTip="Refresh Rate" />
+                    ToolTip="{StaticResource TooltipRefreshRate}" />
             </Border>
 
 
@@ -308,21 +317,21 @@
                     <Setter Property="ContextMenu">
                         <Setter.Value>
                             <ContextMenu>
-                                <MenuItem Command="{Binding PlacementTarget.Tag.GracefulEndProcessCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="Graceful End" />
-                                <MenuItem Command="{Binding PlacementTarget.Tag.GracefulEndProcessTreeCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="Graceful End Tree" />
-                                <MenuItem Command="{Binding PlacementTarget.Tag.EndProcessCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="End" />
+                                <MenuItem Command="{Binding PlacementTarget.Tag.GracefulEndProcessCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="{StaticResource ContextMenuGracefulEnd}" />
+                                <MenuItem Command="{Binding PlacementTarget.Tag.GracefulEndProcessTreeCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="{StaticResource ContextMenuGracefulEndTree}" />
+                                <MenuItem Command="{Binding PlacementTarget.Tag.EndProcessCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="{StaticResource ContextMenuEnd}" />
                                 <MenuItem
                                     Margin="0,0,0,5"
                                     Command="{Binding PlacementTarget.Tag.EndProcessTreeCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                                    Header="End Tree" />
+                                    Header="{StaticResource ContextMenuEndTree}" />
                                 <MenuItem
                                     Margin="0,0,0,5"
-                                    Header="Isolate Tree"
+                                    Header="{StaticResource ContextMenuIsolateTree}"
                                     IsCheckable="True"
                                     IsChecked="{Binding PlacementTarget.Tag.IsTreeIsolated, RelativeSource={RelativeSource AncestorType=ContextMenu}, Mode=TwoWay}" />
-                                <MenuItem Command="{Binding PlacementTarget.Tag.ShowProcessDetailsCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="Details" />
-                                <MenuItem Command="{Binding PlacementTarget.Tag.CopyProcessPathCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="Copy Path" />
-                                <MenuItem Command="{Binding PlacementTarget.Tag.OpenProcessDirectoryCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="Open Directory" />
+                                <MenuItem Command="{Binding PlacementTarget.Tag.ShowProcessDetailsCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="{StaticResource ContextMenuDetails}" />
+                                <MenuItem Command="{Binding PlacementTarget.Tag.CopyProcessPathCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="{StaticResource ContextMenuCopyPath}" />
+                                <MenuItem Command="{Binding PlacementTarget.Tag.OpenProcessDirectoryCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="{StaticResource ContextMenuOpenDirectory}" />
                             </ContextMenu>
                         </Setter.Value>
                     </Setter>

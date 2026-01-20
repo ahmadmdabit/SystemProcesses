@@ -252,7 +252,7 @@ drivePath[3] = '\0';
 - **Standard User**: Can view own processes and some system processes
 - **Administrator**: Required for:
   - Viewing protected processes (CSRSS, services)
-  - Terminating elevated processes
+  - Exiting elevated processes
   - Reading command-line arguments of all processes
 
 ### 7.2 API Security Constraints
@@ -327,16 +327,311 @@ public string FormattedMemory => $"{Info.WorkingSetPrivate / 1024 / 1024:N2} MB"
 - UI synchronization issues
 - Unhandled exceptions
 
-## 12. Future Architecture Considerations
+## 12. Constants Management (M1 - January 2026)
 
-### 12.1 Scalability
+### 12.1 AppConstants Class
+
+**File**: `SystemProcesses.Desktop/Constants.cs` (250 lines)
+
+Consolidates all magic numbers into named constants with clear documentation:
+
+```csharp
+public static class AppConstants
+{
+    // Buffer Management
+    public const int InitialBufferSize = 1024 * 1024;        // 1 MB
+    public const int MaxBufferSize = 100 * 1024 * 1024;      // 100 MB
+    public const int BufferPaddingSize = 1024 * 1024;        // 1 MB
+    
+    // Collection Capacities
+    public const int InitialActiveProcessesCapacity = 1024;
+    public const int InitialPrevStatsCapacity = 1024;
+    
+    // Process Tracking
+    public const int TopProcessesCount = 5;
+    public const int SystemIdleProcessPid = 0;
+    public const int SystemProcessPid = 4;
+    
+    // Timeouts (milliseconds)
+    public const int GracefulShutdownTimeoutMs = 3000;
+    public const int DefaultRefreshIntervalMs = 1000;
+    
+    // UI & Display
+    public const int CpuIconCacheSize = 101;
+    public const int CpuPercentageMaxClamp = 100;
+    
+    // String Encoding
+    public const int Utf16BytesPerChar = 2;
+}
+```
+
+**Benefits**:
+- Improves maintainability (single source of truth)
+- Makes intent explicit (why is buffer 1 MB?)
+- Enables easy tuning for different system sizes
+- Reduces magic number anti-pattern
+
+### 12.2 Usage Pattern
+
+```csharp
+// Before: Magic numbers scattered throughout code
+private IntPtr buffer = Marshal.AllocHGlobal(1024 * 1024);
+if (bufferSize > 100 * 1024 * 1024) throw new Exception();
+
+// After: Clear, documented constants
+private IntPtr buffer = Marshal.AllocHGlobal(AppConstants.InitialBufferSize);
+if (bufferSize > AppConstants.MaxBufferSize) throw new Exception();
+```
+
+---
+
+## 13. Error Handling Standardization (M2 - January 2026)
+
+### 13.1 Structured Error Handling
+
+**File**: `SystemProcesses.Desktop/Helpers/Result.cs` (162 lines)
+
+Implements discriminated union pattern for type-safe error handling:
+
+```csharp
+public abstract record Result<T>
+{
+    public sealed record Success(T Value) : Result<T>;
+    public sealed record Failure(Exception Error, string Context) : Result<T>;
+    
+    public TResult Match<TResult>(
+        Func<T, TResult> onSuccess,
+        Func<Exception, string, TResult> onFailure) =>
+        this switch
+        {
+            Success s => onSuccess(s.Value),
+            Failure f => onFailure(f.Error, f.Context),
+            _ => throw new InvalidOperationException("Unknown result type")
+        };
+}
+```
+
+**Benefits**:
+- Type-safe alternative to exceptions for expected failures
+- Eliminates try-catch boilerplate
+- Provides context information with errors
+- Enables functional error handling patterns
+
+### 13.2 Usage Pattern
+
+```csharp
+// Before: Exception-based error handling
+try
+{
+    var handle = OpenProcess(pid, access);
+    // Use handle
+}
+catch (Win32Exception ex)
+{
+    Log.Error(ex, "Failed to open process");
+}
+
+// After: Result-based error handling
+var result = SafeProcessHandle.TryOpen(pid, access, out var handle);
+result.Match(
+    onSuccess: () => { /* Use handle */ },
+    onFailure: (ex, context) => Log.Error(ex, "Failed: {Context}", context)
+);
+```
+
+---
+
+## 14. Safe Handle Wrappers (C2 - January 2026)
+
+### 14.1 SafeHandle Implementations
+
+**File**: `SystemProcesses.Desktop/Helpers/SafeHandles.cs` (344 lines)
+
+Four sealed SafeHandle implementations for resource safety:
+
+```csharp
+// 1. SafeProcessHandle - Windows process handles
+public sealed class SafeProcessHandle : SafeHandle
+{
+    public override bool IsInvalid => handle == IntPtr.Zero || handle == new IntPtr(-1);
+    protected override bool ReleaseHandle() => SystemPrimitives.CloseHandle(handle);
+    public static SafeProcessHandle Open(int pid, uint access) { /* ... */ }
+}
+
+// 2. SafeServiceHandle - Service Control Manager handles
+public sealed class SafeServiceHandle : SafeHandle
+{
+    public override bool IsInvalid => handle == IntPtr.Zero;
+    protected override bool ReleaseHandle() => SystemPrimitives.CloseServiceHandle(handle);
+    public static SafeServiceHandle OpenScm(string? machineName, uint access) { /* ... */ }
+}
+
+// 3. SafePdhQueryHandle - PDH query handles
+public sealed class SafePdhQueryHandle : SafeHandle
+{
+    public override bool IsInvalid => handle == IntPtr.Zero;
+    protected override bool ReleaseHandle() => SystemPrimitives.PdhCloseQuery(handle) == 0;
+    public static SafePdhQueryHandle Open() { /* ... */ }
+}
+
+// 4. SafeHGlobalHandle - Unmanaged memory
+public sealed class SafeHGlobalHandle : SafeHandle
+{
+    public override bool IsInvalid => handle == IntPtr.Zero;
+    protected override bool ReleaseHandle() { Marshal.FreeHGlobal(handle); return true; }
+    public static SafeHGlobalHandle Allocate(int size) { /* ... */ }
+}
+```
+
+**Benefits**:
+- Automatic resource cleanup via `using` statements
+- Exception-safe (cleanup guaranteed even on throw)
+- Prevents handle leaks
+- Enables `using` pattern for resource management
+
+### 14.2 Usage Pattern
+
+```csharp
+// Before: Manual handle management
+IntPtr handle = OpenProcess(pid, access);
+try
+{
+    // Use handle
+}
+finally
+{
+    CloseHandle(handle);
+}
+
+// After: Automatic cleanup
+using var handle = SafeProcessHandle.Open(pid, access);
+// Use handle - automatically closed when disposed
+```
+
+---
+
+## 15. Telemetry System (M5 - January 2026)
+
+### 15.1 TelemetryService
+
+**File**: `SystemProcesses.Desktop/Services/TelemetryService.cs` (337 lines)
+
+Collects performance metrics and diagnostics:
+
+```csharp
+public class TelemetryService
+{
+    // Performance metrics
+    public TimeSpan LastSnapshotDuration { get; private set; }
+    public int ProcessCountLastSnapshot { get; private set; }
+    public long MemoryAllocatedLastCycle { get; private set; }
+    
+    // Diagnostic counters
+    public long TotalSnapshotsCollected { get; private set; }
+    public long TotalErrorsEncountered { get; private set; }
+    public long TotalProcessesExitd { get; private set; }
+    
+    // Recording methods
+    public void RecordSnapshotDuration(TimeSpan duration) { /* ... */ }
+    public void RecordProcessCount(int count) { /* ... */ }
+    public void RecordError(string context, Exception ex) { /* ... */ }
+}
+```
+
+**Benefits**:
+- Enables performance monitoring
+- Provides diagnostic information
+- Supports performance optimization decisions
+- Enables telemetry export for analysis
+
+---
+
+## 16. UI String Resources (L3 - January 2026)
+
+### 16.1 UIStrings.xaml
+
+**File**: `SystemProcesses.Desktop/Resources/UIStrings.xaml` (90 lines)
+
+Centralizes hardcoded UI strings for maintainability and localization:
+
+```xml
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Window Titles -->
+    <System:String x:Key="MainWindowTitle">System Processes Monitor</System:String>
+    <System:String x:Key="StatsViewTitle">System Statistics</System:String>
+    
+    <!-- Button Labels -->
+    <System:String x:Key="ButtonExit">Exit</System:String>
+    <System:String x:Key="ButtonRefresh">Refresh</System:String>
+    
+    <!-- Error Messages -->
+    <System:String x:Key="ErrorProcessNotFound">Process not found</System:String>
+    <System:String x:Key="ErrorAccessDenied">Access denied</System:String>
+</ResourceDictionary>
+```
+
+**Benefits**:
+- Centralized string management
+- Enables localization support
+- Reduces hardcoded strings in code
+- Improves maintainability
+
+---
+
+## 17. ProcessExitor Service (M3 - January 2026)
+
+### 17.1 Service Architecture
+
+**File**: `SystemProcesses.Desktop/Services/ProcessExitor.cs` (414 lines)
+
+Consolidates process exition logic:
+
+```csharp
+public class ProcessExitor
+{
+    // Graceful shutdown with timeout
+    public async Task<Result> GracefulShutdownAsync(int pid, int timeoutMs = 3000)
+    {
+        // Attempt CloseMainWindow
+        // Wait for process exit
+        // Return result
+    }
+    
+    // Force exition
+    public Result ForceExit(int pid)
+    {
+        // Exit process immediately
+        // Return result
+    }
+    
+    // Tree exition (children first)
+    public async Task<Result> ExitTreeAsync(ProcessInfo root, bool graceful = true)
+    {
+        // Exit children recursively
+        // Then exit parent
+        // Return result
+    }
+}
+```
+
+**Benefits**:
+- Reduced MainViewModel complexity (220 lines removed)
+- Centralized exition logic
+- Improved testability
+- Consistent error handling
+
+---
+
+## 18. Future Architecture Considerations
+
+### 18.1 Scalability
 
 - Current design handles up to ~1000 processes efficiently
 - For larger systems, consider:
   - Incremental updates (only changed PIDs)
   - Lazy tree expansion (load children on-demand)
 
-### 12.2 Cross-Platform
+### 18.2 Cross-Platform
 
 To support Linux/macOS would require:
 - Abstraction layer over `ProcessService`

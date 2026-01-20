@@ -152,7 +152,7 @@ internal static partial IntPtr OpenProcess(
 ```csharp
 private const int ProcessQueryInformation = 0x0400;
 private const int ProcessQueryLimitedInformation = 0x1000;
-private const int ProcessTerminate = 0x0001;
+private const int ProcessExit = 0x0001;
 private const int ProcessVmRead = 0x0010;
 ```
 

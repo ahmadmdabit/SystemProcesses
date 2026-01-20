@@ -110,13 +110,15 @@ The core update loop in `ProcessService.UpdateProcessSnapshot` follows this patt
 
 ## 📚 Documentation
 
-Comprehensive documentation is available in the `../documents/` directory:
+Comprehensive documentation is available in the `documents/` directory:
 
-*   **[architecture.md](../documents/architecture.md)** - System design and architectural patterns
-*   **[learnings.md](../documents/learnings.md)** - Technical decisions, lessons learned, and recent fixes (January 2026)
-*   **[coding-standards.md](../documents/coding-standards.md)** - Code conventions, validation patterns, and best practices
-*   **[examples.md](../documents/examples.md)** - Practical code examples and patterns
-*   **[dependencies.md](../documents/dependencies.md)** - NuGet packages and their rationale
+*   **[architecture.md](documents/architecture.md)** - System design and architectural patterns
+*   **[learnings.md](documents/learnings.md)** - Technical decisions, lessons learned, and recent fixes (January 2026)
+*   **[coding-standards.md](documents/coding-standards.md)** - Code conventions, validation patterns, and best practices
+*   **[examples.md](documents/examples.md)** - Practical code examples and patterns
+*   **[dependencies.md](documents/dependencies.md)** - NuGet packages and their rationale
+*   **[api-reference.md](documents/api-reference.md)** - Windows API documentation
+*   **[glossary.md](documents/glossary.md)** - Project terminology
 
 ### Recent Improvements (January 2026)
 
@@ -128,25 +130,10 @@ This project has been significantly enhanced with:
 *   ✅ **Detailed Error Handling** - PDH initialization logging with fallback mechanisms for observability
 *   ✅ **Magic Numbers Extraction** - Named constants for configuration values (InitialBufferSize, MaxBufferSize, etc.)
 *   ✅ **Resource Cleanup** - Finalizer for ImageLoaderService ensuring proper disposal
+*   ✅ **Result<T> Type Safety** - Discriminated union pattern for explicit error handling in icon loading and other operations
+*   ✅ **Production-Ready Verification** - Complete PFPSO-ShipIt verification checklist with all systems passing
 
-See [../DOCUMENTATION-UPDATES-COMPLETED.md](../DOCUMENTATION-UPDATES-COMPLETED.md) for detailed information about all recent improvements.
-
-## 🧪 Testing
-
-The project includes comprehensive unit tests using NUnit:
-
-```bash
-# Run all tests
-dotnet test
-
-# Run with code coverage
-dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
-
-# Run specific test
-dotnet test --filter "ProcessService_WhenRefreshed_ShouldNotAllocateExcessively"
-```
-
-All tests are located in `../SystemProcesses.Tests/ProcessServiceTests.cs`.
+See [../documents/learnings.md](../documents/learnings.md) for technical decisions.
 
 ## 🤝 Contributing
 
@@ -156,10 +143,11 @@ Contributions are welcome! Please ensure any PRs maintain the **Zero-Allocation*
 *   Use `StringBuilderPool` for string concatenation.
 *   Always validate unsafe code (buffer bounds, pointer arithmetic).
 *   Use thread-safe collections for shared state (ConcurrentDictionary).
+*   Use `Result<T>` discriminated union for explicit error handling instead of exceptions in non-critical paths.
 *   Profile memory usage before submitting.
 *   Add unit tests for critical paths.
-*   Follow the validation patterns documented in [coding-standards.md](../documents/coding-standards.md).
+*   Follow the validation patterns documented in [../documents/coding-standards.md](../documents/coding-standards.md).
 
 ## 📄 License
 
-Licensed under the MIT License. See [LICENSE](../LICENSE) for details.
+Licensed under the MIT License. See [../LICENSE](../LICENSE) for details.

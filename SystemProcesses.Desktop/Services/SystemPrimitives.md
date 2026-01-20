@@ -103,7 +103,7 @@ Retrieves a bitmask representing the currently available disk drives.
 
 #### `GetDriveTypeW`
 Determines the drive type (Fixed, Removable, Network, etc.) for a specific root path.
-*   **Input:** Requires a pointer to a null-terminated string (e.g., `C:\`).
+*   **Input:** Requires a pointer to a null-exitd string (e.g., `C:\`).
 *   **Usage:** Filter for `DriveTypeFixed` (3) to avoid blocking on network or removable drives.
 
 #### `GetDiskFreeSpaceExW`
@@ -148,7 +148,7 @@ public struct UnicodeString
     public IntPtr Buffer;        // Pointer to the UTF-16 string data
 }
 ```
-*   **Safety Warning:** The `Buffer` is **not** guaranteed to be null-terminated.
+*   **Safety Warning:** The `Buffer` is **not** guaranteed to be null-exitd.
 *   **Marshalling:** When converting to C# `string`, you **must** use `Marshal.PtrToStringUni(Buffer, Length / 2)`. Dividing by 2 is required because `Length` is bytes, but .NET expects a character count.
 
 ### 4.3 `PdhFmtCountervalue`

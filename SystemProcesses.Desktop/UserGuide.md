@@ -29,7 +29,7 @@ System Processes is a portable application. No installation is required.
 2. Extract the contents to a folder of your choice.
 3. Run `SystemProcesses.Desktop.exe`.
 
-> **Note:** For full functionality (such as viewing details of system services or terminating privileged processes), it is recommended to **Run as Administrator**.
+> **Note:** For full functionality (such as viewing details of system services or exiting privileged processes), it is recommended to **Run as Administrator**.
 
 ### Navigation
 The main window is divided into three sections:
@@ -58,7 +58,7 @@ The status bar at the top of the window provides an instant overview of your com
 
 You can interact with any process by selecting it in the list and using the **Toolbar** buttons or **Right-Clicking** the item.
 
-### Terminating Processes
+### Exiting Processes
 System Processes offers two distinct ways to stop an application:
 
 #### 1. Graceful End (Recommended)
@@ -66,10 +66,10 @@ System Processes offers two distinct ways to stop an application:
 *   **Behavior:** This is equivalent to clicking the **X** button on a window. It gives the application a chance to save data and exit cleanly.
 *   **Tree Variant:** **Graceful End Tree** attempts to close the selected process and all its children safely.
 
-#### 2. End (Force Kill)
-*   **Action:** Immediately terminates the process.
+#### 2. End (Force Stop)
+*   **Action:** Immediately exits the process.
 *   **Behavior:** The application stops instantly. Unsaved data may be lost. Use this if a program is frozen or "Not Responding."
-*   **Tree Variant:** **End Tree** forcefully kills the selected process and every child process spawned by it.
+*   **Tree Variant:** **End Tree** forcefully stops the selected process and every child process spawned by it.
 
 ### Other Actions
 *   **Details:** Opens a dialog showing extended information (Start Time, Command Line arguments, full file path).
@@ -130,7 +130,7 @@ When minimized, System Processes stays active in the system tray area (near the 
 
 ### Application Not Closing via "Graceful End"
 *   **Cause:** The application might be frozen, waiting for user input (like a "Save Changes" dialog), or it might be a background process with no visible window.
-*   **Solution:** If Graceful End fails, use the **End** (Force Kill) button.
+*   **Solution:** If Graceful End fails, use the **End** (Force Stop) button.
 
 ### High CPU Usage by System Processes App
 *   **Cause:** Very low refresh intervals (e.g., 1s) on older hardware can cause slight CPU usage due to the speed of data collection.

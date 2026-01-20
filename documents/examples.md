@@ -1347,6 +1347,373 @@ public class ProcessService : IDisposable
 
 ---
 
+## Result<T> Pattern Examples
+
+### Example 1: Basic Result<T> Usage
+
+**Pattern**: Use Result<T> for operations that can fail for expected reasons.
+
+```csharp
+using SystemProcesses.Desktop.Helpers;
+
+// ✅ Good - Result<T> for expected failures
+public Result<ImageSource> GetIcon(string? processPath)
+{
+    if (string.IsNullOrEmpty(processPath))
+    {
+        return new Result<ImageSource>.Failure(
+            new ArgumentNullException(nameof(processPath)),
+            "Process path is null or empty");
+    }
+
+    try
+    {
+        using var icon = Icon.ExtractAssociatedIcon(processPath);
+        if (icon == null)
+        {
+            return new Result<ImageSource>.Failure(
+                new FileNotFoundException("No icon associated with file"),
+                $"Icon.ExtractAssociatedIcon returned null for {processPath}");
+        }
+
+        var imageSource = Imaging.CreateBitmapSourceFromHIcon(
+            icon.Handle,
+            Int32Rect.Empty,
+            BitmapSizeOptions.FromEmptyOptions());
+
+        imageSource.Freeze();
+        return new Result<ImageSource>.Success(imageSource);
+    }
+    catch (Exception ex)
+    {
+        Log.Warning(ex, "Failed to extract icon from {ProcessPath}", processPath);
+        return new Result<ImageSource>.Failure(ex, $"Icon extraction failed for {processPath}");
+    }
+}
+
+// Usage: Graceful degradation
+var iconResult = GetIcon(processPath);
+var icon = iconResult.GetValueOrDefault(defaultIcon);
+
+// Usage: Explicit handling
+iconResult.Match(
+    onSuccess: img => DisplayIcon(img),
+    onFailure: (ex, ctx) => Log.Warning(ex, "Failed: {Context}", ctx));
+```
+
+---
+
+### Example 2: Result<T> with Validation
+
+**Pattern**: Validate input and return Result<T> with specific error context.
+
+```csharp
+public Result<SafeProcessHandle> TryOpen(int pid, uint access)
+{
+    // Validate input
+    if (pid <= 0)
+    {
+        return new Result<SafeProcessHandle>.Failure(
+            new ArgumentException("PID must be greater than 0", nameof(pid)),
+            $"Invalid PID: {pid}");
+    }
+
+    // Attempt operation
+    var rawHandle = SystemPrimitives.OpenProcess(access, false, pid);
+    
+    if (rawHandle == IntPtr.Zero)
+    {
+        return new Result<SafeProcessHandle>.Failure(
+            new UnauthorizedAccessException("OpenProcess failed"),
+            $"Failed to open process {pid} with access 0x{access:X8} (access denied or process exited)");
+    }
+
+    // Success
+    var handle = new SafeProcessHandle();
+    handle.SetHandle(rawHandle);
+    return new Result<SafeProcessHandle>.Success(handle);
+}
+
+// Usage
+var result = TryOpen(pid, ProcessQueryLimitedInformation);
+
+result.Match(
+    onSuccess: handle =>
+    {
+        using (handle)
+        {
+            // Use handle
+        }
+    },
+    onFailure: (ex, ctx) =>
+    {
+        Log.Warning(ex, "Failed to open process: {Context}", ctx);
+    });
+```
+
+---
+
+### Example 3: Result<T> in Service Methods
+
+**Pattern**: Return Result<T> from service methods to provide error context to callers.
+
+```csharp
+public class ProcessService
+{
+    // ✅ Good - Result<T> for expected failures
+    public Result<string> GetCommandLine(int pid)
+    {
+        if (pid <= 4)
+        {
+            return new Result<string>.Failure(
+                new InvalidOperationException("Cannot query system processes"),
+                $"PID {pid} is a system process (PID <= 4)");
+        }
+
+        IntPtr hProcess = SystemPrimitives.OpenProcess(
+            SystemPrimitives.ProcessQueryLimitedInformation, false, pid);
+
+        if (hProcess == IntPtr.Zero)
+        {
+            return new Result<string>.Failure(
+                new UnauthorizedAccessException("OpenProcess failed"),
+                $"Failed to open process handle for PID {pid} (access denied or process exited)");
+        }
+
+        try
+        {
+            int bufferSize = 0;
+            SystemPrimitives.NtQueryInformationProcess(hProcess,
+                SystemPrimitives.ProcessCommandLineInformation, IntPtr.Zero, 0, out bufferSize);
+
+            if (bufferSize == 0)
+            {
+                return new Result<string>.Failure(
+                    new InvalidOperationException("Buffer size query returned 0"),
+                    $"NtQueryInformationProcess returned 0 buffer size for PID {pid}");
+            }
+
+            IntPtr buffer = Marshal.AllocHGlobal(bufferSize);
+            try
+            {
+                int status = SystemPrimitives.NtQueryInformationProcess(hProcess,
+                    SystemPrimitives.ProcessCommandLineInformation, buffer, bufferSize, out _);
+
+                if (status != SystemPrimitives.StatusSuccess)
+                {
+                    return new Result<string>.Failure(
+                        new InvalidOperationException($"NtQueryInformationProcess failed with status 0x{status:X8}"),
+                        $"Failed to query command line for PID {pid}: status 0x{status:X8}");
+                }
+
+                var unicodeString = Marshal.PtrToStructure<SystemPrimitives.UnicodeString>(buffer);
+                if (unicodeString.Buffer == IntPtr.Zero)
+                {
+                    return new Result<string>.Failure(
+                        new InvalidOperationException("UnicodeString buffer is null"),
+                        $"Command line buffer is null for PID {pid}");
+                }
+
+                string commandLine = Marshal.PtrToStringUni(unicodeString.Buffer, unicodeString.Length / 2) ?? string.Empty;
+                return new Result<string>.Success(commandLine);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Exception while querying command line for PID {Pid}", pid);
+            return new Result<string>.Failure(ex, $"Exception occurred while querying command line for PID {pid}");
+        }
+        finally
+        {
+            SystemPrimitives.CloseHandle(hProcess);
+        }
+    }
+
+    // ✅ Good - Result<T> for expected failures
+    public Result<string> GetProcessPath(int pid)
+    {
+        try
+        {
+            using var p = Process.GetProcessById(pid);
+            string? path = p.MainModule?.FileName;
+            
+            if (string.IsNullOrEmpty(path))
+            {
+                return new Result<string>.Failure(
+                    new InvalidOperationException("MainModule.FileName is null or empty"),
+                    $"Process.GetProcessById({pid}).MainModule?.FileName returned null or empty");
+            }
+
+            return new Result<string>.Success(path);
+        }
+        catch (ArgumentException ex)
+        {
+            return new Result<string>.Failure(ex, $"Process with PID {pid} not found (may have exited)");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return new Result<string>.Failure(ex, $"Cannot access process path for PID {pid} (access denied or system process)");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Exception while querying process path for PID {Pid}", pid);
+            return new Result<string>.Failure(ex, $"Exception occurred while querying process path for PID {pid}");
+        }
+    }
+}
+
+// Usage in ViewModel
+public partial class MainViewModel : ObservableObject
+{
+    private readonly ProcessService processService;
+
+    private void UpdateProcessInfo(int pid)
+    {
+        // Get command line
+        var cmdResult = processService.GetCommandLine(pid);
+        string commandLine = cmdResult.GetValueOrDefault(string.Empty);
+
+        // Get process path
+        var pathResult = processService.GetProcessPath(pid);
+        string? processPath = pathResult.GetValueOrDefault(null);
+
+        // Update UI
+        CommandLineText = commandLine;
+        ProcessPathText = processPath ?? "Unknown";
+    }
+}
+```
+
+---
+
+### Example 4: Result<T> Composition
+
+**Pattern**: Chain multiple Result<T> operations with Match().
+
+```csharp
+public class ProcessAnalyzer
+{
+    private readonly ProcessService processService;
+    private readonly IconCache iconCache;
+
+    public void AnalyzeProcess(int pid)
+    {
+        // Get command line
+        var cmdResult = processService.GetCommandLine(pid);
+        
+        cmdResult.Match(
+            onSuccess: commandLine =>
+            {
+                // Extract executable path from command line
+                string exePath = ExtractExecutablePath(commandLine);
+                
+                // Load icon
+                var iconResult = iconCache.GetIcon(exePath);
+                
+                iconResult.Match(
+                    onSuccess: icon =>
+                    {
+                        Log.Information("Successfully analyzed process {Pid}: {CommandLine}", pid, commandLine);
+                        DisplayProcessInfo(pid, commandLine, icon);
+                    },
+                    onFailure: (ex, ctx) =>
+                    {
+                        Log.Warning(ex, "Failed to load icon: {Context}", ctx);
+                        DisplayProcessInfo(pid, commandLine, defaultIcon);
+                    });
+            },
+            onFailure: (ex, ctx) =>
+            {
+                Log.Warning(ex, "Failed to get command line: {Context}", ctx);
+                // Fallback behavior
+            });
+    }
+}
+```
+
+---
+
+### Example 5: Result<T> vs Exceptions
+
+**Pattern**: Use Result<T> for expected failures, exceptions for unexpected failures.
+
+```csharp
+// ✅ Good - Result<T> for expected failures
+public Result<SafeHGlobalHandle> TryAllocate(int size)
+{
+    if (size <= 0)
+    {
+        return new Result<SafeHGlobalHandle>.Failure(
+            new ArgumentException("Size must be greater than zero", nameof(size)),
+            $"Invalid allocation size: {size} bytes");
+    }
+
+    try
+    {
+        IntPtr ptr = Marshal.AllocHGlobal(size);
+        
+        if (ptr == IntPtr.Zero)
+        {
+            return new Result<SafeHGlobalHandle>.Failure(
+                new OutOfMemoryException($"Marshal.AllocHGlobal returned null"),
+                $"Failed to allocate {size} bytes (out of memory)");
+        }
+
+        var handle = new SafeHGlobalHandle(size);
+        handle.SetHandle(ptr);
+        return new Result<SafeHGlobalHandle>.Success(handle);
+    }
+    catch (Exception ex)
+    {
+        return new Result<SafeHGlobalHandle>.Failure(ex, $"Exception occurred while allocating {size} bytes");
+    }
+}
+
+// ✅ Good - Throw for critical failures
+public void InitializeService()
+{
+    try
+    {
+        buffer = Marshal.AllocHGlobal(bufferSize);
+        if (buffer == IntPtr.Zero)
+        {
+            throw new OutOfMemoryException(
+                $"Failed to allocate {bufferSize} bytes for core buffer");
+        }
+    }
+    catch (Exception ex)
+    {
+        Log.Fatal(ex, "Failed to initialize ProcessService");
+        throw; // Critical failure - propagate
+    }
+}
+
+// ❌ Bad - Throwing for expected failures
+public SafeHGlobalHandle Allocate(int size)
+{
+    if (size <= 0)
+    {
+        throw new ArgumentException("Size must be greater than zero"); // Use Result<T> instead
+    }
+
+    IntPtr ptr = Marshal.AllocHGlobal(size);
+    if (ptr == IntPtr.Zero)
+    {
+        throw new OutOfMemoryException(); // Use Result<T> instead
+    }
+
+    var handle = new SafeHGlobalHandle(size);
+    handle.SetHandle(ptr);
+    return handle;
+}
+```
+
+---
+
 ## Complete Real-World Example: Process Refresh Cycle
 
 ```csharp

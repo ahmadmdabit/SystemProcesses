@@ -100,7 +100,7 @@ public sealed class ImageLoaderService : IDisposable, IImageLoaderService
     /// <exception cref="ArgumentNullException">
     /// Thrown when the UI dispatcher cannot be determined or supplied.
     /// </exception>
-    public ImageLoaderService(Dispatcher? uiDispatcher = null, long maxBytes = 50 * 1024 * 1024, int maxCacheEntries = 1024)
+    public ImageLoaderService(Dispatcher? uiDispatcher = null, long maxBytes = AppConstants.DefaultMaxImageBytes, int maxCacheEntries = AppConstants.DefaultMaxCacheEntries)
     {
         this.uiDispatcher = uiDispatcher ?? Application.Current?.Dispatcher
             ?? throw new ArgumentNullException(nameof(uiDispatcher), "UI Dispatcher is required.");
@@ -251,7 +251,7 @@ public sealed class ImageLoaderService : IDisposable, IImageLoaderService
         try
         {
             // Async read into rented buffer
-            using (var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true))
+            using (var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read, AppConstants.FileStreamBufferSize, useAsync: true))
             {
                 int read = 0;
                 while (read < length)
@@ -310,7 +310,7 @@ public sealed class ImageLoaderService : IDisposable, IImageLoaderService
 
         // Read into rented buffer growing as needed
         var pool = ArrayPool<byte>.Shared;
-        int bufferSize = contentLength > 0 && contentLength <= int.MaxValue ? (int)contentLength : 81920;
+        int bufferSize = contentLength > 0 && contentLength <= int.MaxValue ? (int)contentLength : AppConstants.HttpStreamBufferSize;
         byte[] buffer = pool.Rent(Math.Min(bufferSize, (int)Math.Min(maxBytes, int.MaxValue)));
         int total = 0;
         try

@@ -226,7 +226,7 @@ unsafe
 unsafe
 {
     byte* current = (byte*)buffer;
-    while (true) // No termination condition!
+    while (true) // No exition condition!
     {
         int structSize = *(int*)current; // Could read past buffer end
         current += structSize;
@@ -702,7 +702,7 @@ Log.Information("Process {Name} (PID: {Pid}) started at {StartTime}",
     name, pid, startTime);
 
 // ✅ Good - log exceptions with context
-Log.Error(ex, "Failed to terminate process {Pid}", pid);
+Log.Error(ex, "Failed to exit process {Pid}", pid);
 
 // ❌ Bad - string concatenation
 Log.Information("Process " + name + " started"); // Allocates string
@@ -712,6 +712,98 @@ foreach (var process in processes) // Runs 300+ times/sec
 {
     Log.Debug("Processing {Pid}", process.Pid); // Too verbose
 }
+```
+
+### 6.4 Result<T> Pattern for Expected Failures
+
+**When to use Result<T>**:
+- Operations that can fail for expected reasons (access denied, file not found, process exited)
+- When you want to capture error context without exception overhead
+- When you need composable error handling with Match()
+
+**When NOT to use Result<T>**:
+- Unexpected exceptions (OutOfMemoryException, StackOverflowException)
+- Critical failures that should crash the application
+- Input validation (use ArgumentException instead)
+
+**Implementation**:
+```csharp
+using SystemProcesses.Desktop.Helpers;
+
+// ✅ Good - Result<T> for expected failures
+public Result<string> GetCommandLine(int pid)
+{
+    if (pid <= 4)
+    {
+        return new Result<string>.Failure(
+            new InvalidOperationException("System process"),
+            $"PID {pid} is a system process");
+    }
+
+    IntPtr handle = OpenProcess(ProcessQueryLimitedInformation, false, pid);
+    if (handle == IntPtr.Zero)
+    {
+        return new Result<string>.Failure(
+            new UnauthorizedAccessException("OpenProcess failed"),
+            $"Failed to open process {pid}");
+    }
+
+    try
+    {
+        // Query command line...
+        return new Result<string>.Success(commandLine);
+    }
+    catch (Exception ex)
+    {
+        Log.Warning(ex, "Exception querying command line for PID {Pid}", pid);
+        return new Result<string>.Failure(ex, $"GetCommandLine(pid={pid})");
+    }
+    finally
+    {
+        CloseHandle(handle);
+    }
+}
+
+// Usage: Graceful degradation
+var result = GetCommandLine(pid);
+string commandLine = result.GetValueOrDefault(string.Empty);
+
+// Usage: Explicit handling
+result.Match(
+    onSuccess: cmd => ProcessCommand(cmd),
+    onFailure: (ex, ctx) => Log.Warning(ex, "Failed: {Context}", ctx));
+
+// ❌ Bad - Swallowing exceptions silently
+public string? GetCommandLine(int pid)
+{
+    try
+    {
+        // ...
+        return commandLine;
+    }
+    catch
+    {
+        return null; // Silent failure - no logging!
+    }
+}
+```
+
+**Result<T> API**:
+```csharp
+// Get value or default
+string cmd = result.GetValueOrDefault(string.Empty);
+
+// Get value or throw
+string cmd = result.GetValueOrThrow(); // Throws if Failure
+
+// Pattern matching
+result.Match(
+    onSuccess: value => { /* use value */ },
+    onFailure: (ex, context) => { /* handle error */ });
+
+// Check state
+if (result.IsSuccess) { /* ... */ }
+if (result.IsFailure) { /* ... */ }
 ```
 
 ---

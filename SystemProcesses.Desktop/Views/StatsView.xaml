@@ -24,46 +24,27 @@
     </Window.DataContext>
 
     <Window.Resources>
-        <!--  Styles  -->
-        <Style x:Key="GreenTextBlock" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#00EE00" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="FontFamily" Value="Consolas" />
-            <Setter Property="FontSize" Value="12" />
-        </Style>
-        <Style
-            x:Key="GreenTextBlock2"
-            BasedOn="{StaticResource GreenTextBlock}"
-            TargetType="TextBlock">
-            <Setter Property="HorizontalAlignment" Value="Center" />
-            <Setter Property="FontSize" Value="11" />
-        </Style>
-
-        <Style x:Key="IconBorder" TargetType="Border">
-            <Setter Property="Background" Value="#333333" />
-            <Setter Property="BorderBrush" Value="#444444" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="5" />
-            <Setter Property="Padding" Value="5,3" />
-            <Setter Property="Margin" Value="0,0,3,0" />
-            <Setter Property="SnapsToDevicePixels" Value="True" />
-        </Style>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Resources/UIStrings.xaml" />
+                <ResourceDictionary Source="/Resources/Styles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Window.Resources>
 
     <Window.ContextMenu>
         <ContextMenu
             Placement="Relative"
             PlacementRectangle="0,0,0,0"
-            PlacementTarget="{Binding ElementName=RootBorder}"
             Style="{StaticResource ContextMenuStyle}"
             VerticalOffset="-8">
             <MenuItem
                 Command="{Binding ShowApplicationCommand}"
-                Header="Show"
+                Header="{StaticResource ContextMenuShow}"
                 Style="{StaticResource MenuItemStyle}" />
             <MenuItem
                 Command="{Binding ExitApplicationCommand}"
-                Header="Exit"
+                Header="{StaticResource ContextMenuExit}"
                 Style="{StaticResource MenuItemStyle}" />
         </ContextMenu>
     </Window.ContextMenu>
@@ -82,7 +63,7 @@
             <!--  CPU  -->
             <Border Style="{StaticResource IconBorder}">
                 <StackPanel Orientation="Vertical">
-                    <TextBlock Style="{StaticResource GreenTextBlock2}" Text="CPU" />
+                    <TextBlock Style="{StaticResource GreenTextBlock2}" Text="{StaticResource StatsViewCPU}" />
                     <TextBlock Style="{StaticResource GreenTextBlock}" Text="{Binding TotalCpuUsage, Converter={StaticResource CpuPercentageConverter}, FallbackValue=0%}" />
                 </StackPanel>
             </Border>
@@ -90,7 +71,7 @@
             <!--  RAM  -->
             <Border Style="{StaticResource IconBorder}">
                 <StackPanel Orientation="Vertical">
-                    <TextBlock Style="{StaticResource GreenTextBlock2}" Text="RAM" />
+                    <TextBlock Style="{StaticResource GreenTextBlock2}" Text="{StaticResource StatsViewRAM}" />
                     <TextBlock Style="{StaticResource GreenTextBlock}" Text="{Binding RamPercent, Converter={StaticResource CpuPercentageConverter}, FallbackValue=0%}" />
                 </StackPanel>
             </Border>
@@ -98,7 +79,7 @@
             <!--  Virtual Memory  -->
             <Border Style="{StaticResource IconBorder}">
                 <StackPanel Orientation="Vertical">
-                    <TextBlock Style="{StaticResource GreenTextBlock2}" Text="VM" />
+                    <TextBlock Style="{StaticResource GreenTextBlock2}" Text="{StaticResource StatsViewVM}" />
                     <TextBlock Style="{StaticResource GreenTextBlock}" Text="{Binding VMPercent, Converter={StaticResource CpuPercentageConverter}, FallbackValue=0%}" />
                 </StackPanel>
             </Border>
@@ -106,7 +87,7 @@
             <!--  Disk Activity  -->
             <Border Style="{StaticResource IconBorder}">
                 <StackPanel Orientation="Vertical">
-                    <TextBlock Style="{StaticResource GreenTextBlock2}" Text="Disk" />
+                    <TextBlock Style="{StaticResource GreenTextBlock2}" Text="{StaticResource StatsViewDisk}" />
                     <TextBlock Style="{StaticResource GreenTextBlock}" Text="{Binding DiskActivePercent, Converter={StaticResource CpuPercentageConverter}, FallbackValue=0%}" />
                 </StackPanel>
             </Border>

@@ -7,44 +7,38 @@ using System.Threading.Tasks;
 
 using Serilog;
 
+using SystemProcesses.Desktop.Helpers;
 using SystemProcesses.Desktop.Models;
 
 namespace SystemProcesses.Desktop.Services;
 
 public class ProcessService : IProcessService, IDisposable
 {
-    // Named constants for buffer management
-    private const int InitialBufferSize = 1024 * 1024;      // 1 MB initial buffer for process data
-    private const int MaxBufferSize = 100 * 1024 * 1024;    // 100 MB max buffer size
-    private const int BufferPaddingSize = 1024 * 1024;      // 1 MB padding when resizing
-
     private struct ProcessHistory
     {
         public long TotalProcessorTime;
         public long TotalIoBytes;
     }
 
-    private readonly Dictionary<int, ProcessInfo> activeProcesses = new(1024);
-    private readonly Dictionary<int, ProcessHistory> prevProcessStats = new(1024);
-    private readonly List<ProcessInfo> rootNodes = new(64);
+    private readonly Dictionary<int, ProcessInfo> activeProcesses = new(AppConstants.InitialActiveProcessesCapacity);
+    private readonly Dictionary<int, ProcessHistory> prevProcessStats = new(AppConstants.InitialPrevStatsCapacity);
+    private readonly List<ProcessInfo> rootNodes = new(AppConstants.InitialRootNodesCapacity);
     private readonly HashSet<int> servicePids = [];
 
     // Reusable buffers
-    private readonly HashSet<int> currentPidsBuffer = new(1024);
+    private readonly HashSet<int> currentPidsBuffer = new(AppConstants.InitialPidsBufferCapacity);
 
-    private readonly List<int> stoppedPidsBuffer = new(64);
-    private readonly ProcessInfo?[] top5Buffer = new ProcessInfo?[5];
-    private readonly DriveStats[] driveBuffer = new DriveStats[26]; // Max drive letters A-Z
+    private readonly List<int> stoppedPidsBuffer = new(AppConstants.InitialStoppedPidsCapacity);
+    private readonly ProcessInfo?[] top5Buffer = new ProcessInfo?[AppConstants.TopProcessesCount];
+    private readonly DriveStats[] driveBuffer = new DriveStats[AppConstants.MaxDriveLetters];
 
     // Reusable buffer for NtQuerySystemInformation
     private IntPtr buffer = IntPtr.Zero;
-
-    private int bufferSize = InitialBufferSize;
+    private int bufferSize = AppConstants.InitialBufferSize;
     private long prevTicks = 0;
 
     // PDH Fields
     private IntPtr pdhQuery = IntPtr.Zero;
-
     private IntPtr pdhDiskIdleCounter = IntPtr.Zero;
     private bool isPdhInitialized = false;
 
@@ -54,7 +48,8 @@ public class ProcessService : IProcessService, IDisposable
 
     public ProcessService()
     {
-        buffer = Marshal.AllocHGlobal(bufferSize);
+        buffer = Marshal.AllocHGlobal(AppConstants.InitialBufferSize);
+        bufferSize = AppConstants.InitialBufferSize;
         InitializePdh();
     }
 
@@ -204,14 +199,14 @@ public class ProcessService : IProcessService, IDisposable
         if (status == SystemPrimitives.StatusInfoLengthMismatch)
         {
             // CRITICAL: Validate required size before allocation
-            if (requiredSize <= 0 || requiredSize > MaxBufferSize) // Max 100MB
+            if (requiredSize <= 0 || requiredSize > AppConstants.MaxBufferSize) // Max 100MB
             {
                 Log.Error("Invalid buffer size requested: {Size}", requiredSize);
                 return new SystemStats();
             }
 
             Marshal.FreeHGlobal(buffer);
-            bufferSize = requiredSize + BufferPaddingSize; // Add 1MB padding
+            bufferSize = requiredSize + AppConstants.BufferPaddingSize; // Add 1MB padding
             buffer = Marshal.AllocHGlobal(bufferSize);
             
             if (buffer == IntPtr.Zero)
@@ -294,7 +289,7 @@ public class ProcessService : IProcessService, IDisposable
         rootPath[3] = '\0';
 
         // Iterate bits 0-25 (A-Z)
-        for (int i = 0; i < 26; i++)
+        for (int i = 0; i < AppConstants.MaxDriveLetters; i++)
         {
             if ((drivesBitMask & (1 << i)) != 0)
             {
@@ -319,7 +314,7 @@ public class ProcessService : IProcessService, IDisposable
 
         long currentTicks = DateTime.UtcNow.Ticks;
         double deltaTime = (currentTicks - prevTicks);
-        double deltaTimeSec = deltaTime / 10_000_000.0; // Ticks are 100ns
+        double deltaTimeSec = deltaTime / (double)AppConstants.TicksPerSecond; // Ticks are 100ns
         prevTicks = currentTicks;
 
         currentPidsBuffer.Clear();
@@ -387,7 +382,7 @@ public class ProcessService : IProcessService, IDisposable
 
             // Aggregate Stats - EXCLUDE System Idle Process (PID 0)
             // PID 0 represents unused CPU/Resources. Including it skews "Total CPU" to ~100%.
-            if (pid != 0)
+            if (pid != AppConstants.SystemIdleProcessPid)
             {
                 stats.ProcessCount++;
                 stats.ThreadCount += threads;
@@ -411,11 +406,11 @@ public class ProcessService : IProcessService, IDisposable
             else
             {
                 string name;
-                if (pid == 0)
+                if (pid == AppConstants.SystemIdleProcessPid)
                 {
                     name = "System Idle Process";
                 }
-                else if (pid == 4)
+                else if (pid == AppConstants.SystemProcessPid)
                 {
                     name = "System";
                 }
@@ -426,7 +421,7 @@ public class ProcessService : IProcessService, IDisposable
                     // Marshal.PtrToStringUni expects a length in CHARACTERS.
                     // Since UTF-16 uses 2 bytes per character, we divide by 2 to get the correct count.
                     // VALIDATION: Ensure Length is even (valid UTF-16)
-                    if (ptr->ImageName.Length % 2 != 0)
+                    if (ptr->ImageName.Length % AppConstants.Utf16BytesPerChar != 0)
                     {
                         Log.Warning("Invalid UTF-16 string length for PID {Pid}: {Length}", 
                             pid, ptr->ImageName.Length);
@@ -451,6 +446,12 @@ public class ProcessService : IProcessService, IDisposable
                     }
                 }
 
+                var commandLineResult = GetCommandLine(pid);
+                string commandLine = commandLineResult.GetValueOrDefault(string.Empty);
+
+                var processPathResult = GetProcessPath(pid);
+                string? processPath = processPathResult.GetValueOrDefault(null);
+
                 var newInfo = new ProcessInfo
                 {
                     Pid = pid,
@@ -458,8 +459,8 @@ public class ProcessService : IProcessService, IDisposable
                     Name = name,
                     ParentPid = parentPid,
                     IsService = isService,
-                    ProcessPath = GetProcessPath(pid),
-                    Parameters = GetCommandLine(pid) // Fetch once
+                    ProcessPath = processPath,
+                    Parameters = commandLine // Fetch once
                 };
                 newInfo.Update(cpuUsage, memBytes, virtualBytes, threads, handles);
                 activeProcesses.Add(pid, newInfo);
@@ -579,11 +580,18 @@ public class ProcessService : IProcessService, IDisposable
         }
     }
 
-    private string GetCommandLine(int pid)
+    /// <summary>
+    /// Retrieves the command line for a process.
+    /// </summary>
+    /// <param name="pid">The process ID.</param>
+    /// <returns>A Result containing the command line string on success, or a Failure with error details.</returns>
+    private Result<string> GetCommandLine(int pid)
     {
         if (pid <= 4)
         {
-            return string.Empty;
+            return new Result<string>.Failure(
+                new InvalidOperationException("Cannot query command line for system processes"),
+                $"PID {pid} is a system process (PID <= 4)");
         }
 
         IntPtr hProcess = SystemPrimitives.OpenProcess(
@@ -591,7 +599,9 @@ public class ProcessService : IProcessService, IDisposable
 
         if (hProcess == IntPtr.Zero)
         {
-            return string.Empty;
+            return new Result<string>.Failure(
+                new UnauthorizedAccessException("OpenProcess failed"),
+                $"Failed to open process handle for PID {pid} (access denied or process exited)");
         }
 
         try
@@ -603,7 +613,9 @@ public class ProcessService : IProcessService, IDisposable
 
             if (bufferSize == 0)
             {
-                return string.Empty;
+                return new Result<string>.Failure(
+                    new InvalidOperationException("Buffer size query returned 0"),
+                    $"NtQueryInformationProcess returned 0 buffer size for PID {pid}");
             }
 
             IntPtr buffer = Marshal.AllocHGlobal(bufferSize);
@@ -612,18 +624,32 @@ public class ProcessService : IProcessService, IDisposable
                 int status = SystemPrimitives.NtQueryInformationProcess(hProcess,
                     SystemPrimitives.ProcessCommandLineInformation, buffer, bufferSize, out _);
 
-                if (status == SystemPrimitives.StatusSuccess)
+                if (status != SystemPrimitives.StatusSuccess)
                 {
-                    // Read UnicodeString
-                    var unicodeString = Marshal.PtrToStructure<SystemPrimitives.UnicodeString>(buffer);
-                    if (unicodeString.Buffer != IntPtr.Zero && unicodeString.Length > 0)
-                    {
-                        // DX: The kernel buffer is not guaranteed to be null-terminated.
-                        // We must explicitly tell .NET how many characters to read.
-                        // Calculation: [OS Byte Count] / 2 = [.NET Char Count]
-                        return Marshal.PtrToStringUni(unicodeString.Buffer, unicodeString.Length / 2) ?? string.Empty;
-                    }
+                    return new Result<string>.Failure(
+                        new InvalidOperationException($"NtQueryInformationProcess failed with status 0x{status:X8}"),
+                        $"Failed to query command line for PID {pid}: status 0x{status:X8}");
                 }
+
+                // Read UnicodeString
+                var unicodeString = Marshal.PtrToStructure<SystemPrimitives.UnicodeString>(buffer);
+                if (unicodeString.Buffer == IntPtr.Zero)
+                {
+                    return new Result<string>.Failure(
+                        new InvalidOperationException("UnicodeString buffer is null"),
+                        $"Command line buffer is null for PID {pid}");
+                }
+
+                if (unicodeString.Length == 0)
+                {
+                    return new Result<string>.Success(string.Empty);
+                }
+
+                // DX: The kernel buffer is not guaranteed to be null-exitd.
+                // We must explicitly tell .NET how many characters to read.
+                // Calculation: [OS Byte Count] / 2 = [.NET Char Count]
+                string? commandLine = Marshal.PtrToStringUni(unicodeString.Buffer, unicodeString.Length / 2);
+                return new Result<string>.Success(commandLine ?? string.Empty);
             }
             finally
             {
@@ -632,30 +658,50 @@ public class ProcessService : IProcessService, IDisposable
         }
         catch (Exception ex)
         {
-            // Ignore exceptions
-            Log.Warning(ex, "Ignored");
+            Log.Warning(ex, "Exception while querying command line for PID {Pid}", pid);
+            return new Result<string>.Failure(ex, $"Exception occurred while querying command line for PID {pid}");
         }
         finally
         {
             SystemPrimitives.CloseHandle(hProcess);
         }
-
-        return string.Empty;
     }
 
-    private string? GetProcessPath(int pid)
+    /// <summary>
+    /// Retrieves the file path of a process executable.
+    /// </summary>
+    /// <param name="pid">The process ID.</param>
+    /// <returns>A Result containing the process path on success, or a Failure with error details.</returns>
+    private Result<string> GetProcessPath(int pid)
     {
         // Fallback to .NET API for path retrieval as it's complex via P/Invoke
         // Only called once per process creation.
         try
         {
             using var p = Process.GetProcessById(pid);
-            return p.MainModule?.FileName;
+            string? path = p.MainModule?.FileName;
+            
+            if (string.IsNullOrEmpty(path))
+            {
+                return new Result<string>.Failure(
+                    new InvalidOperationException("MainModule.FileName is null or empty"),
+                    $"Process.GetProcessById({pid}).MainModule?.FileName returned null or empty");
+            }
+
+            return new Result<string>.Success(path);
+        }
+        catch (ArgumentException ex)
+        {
+            return new Result<string>.Failure(ex, $"Process with PID {pid} not found (may have exited)");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return new Result<string>.Failure(ex, $"Cannot access process path for PID {pid} (access denied or system process)");
         }
         catch (Exception ex)
         {
-            Log.Warning(ex, "Ignored");
-            return null;
+            Log.Warning(ex, "Exception while querying process path for PID {Pid}", pid);
+            return new Result<string>.Failure(ex, $"Exception occurred while querying process path for PID {pid}");
         }
     }
 

@@ -1,4 +1,175 @@
-﻿Below are **clean, realistic, idiomatic usage examples** for the ImageLoaderService in WPF.
+﻿# ImageLoaderService Implementation Guide
+
+## Overview
+
+`ImageLoaderService` provides asynchronous, thread-safe image loading and caching for WPF applications. It performs IO off the UI thread, decodes images on the UI thread, uses pooled buffers to minimize allocations, and returns frozen `BitmapSource` instances safe for cross-thread consumption.
+
+## Key Features
+
+- **Async-first design**: File and HTTP loading occur off the UI thread
+- **In-flight request deduplication**: Single load per canonical key prevents redundant operations
+- **Optional decode pixel sizing**: Thumbnail support for memory optimization
+- **Memory pooling**: `ArrayPool<byte>` for IO buffers reduces large-object allocations
+- **Bounded cache**: Configurable max entries with eviction hook
+- **Thread-safe**: `ConcurrentDictionary` for cache and inflight tracking
+- **Resource cleanup**: Finalizer ensures `HttpClient` disposal
+
+## Architecture
+
+### Resource Canonicalization
+
+The service normalizes input paths/URIs into canonical forms to ensure consistent cache keys:
+
+- **File paths**: Converted to absolute paths via `Path.GetFullPath()`
+- **HTTP/HTTPS URIs**: Normalized to absolute URIs
+- **Pack URIs**: Normalized to absolute pack URIs
+- **Relative paths**: Treated as file paths relative to app base
+
+### Resource Kinds
+
+Three resource types are supported:
+
+1. **File**: Local file system paths (absolute or relative)
+2. **Http**: HTTP/HTTPS remote images
+3. **PackOrUri**: WPF pack URIs and other absolute URIs
+
+### Load Flow
+
+1. **Cache check**: Return immediately if cached
+2. **Inflight deduplication**: Reuse existing load task if in-flight
+3. **IO phase**: Read file/download off UI thread using pooled buffers
+4. **Decode phase**: Create `BitmapImage` on UI thread via `Dispatcher.InvokeAsync()`
+5. **Freeze**: Freeze `BitmapSource` for cross-thread safety
+6. **Cache insertion**: Add to cache if under max entries
+7. **Inflight cleanup**: Remove from inflight tracking
+
+### Buffer Management
+
+- **File loading**: Uses `ArrayPool<byte>` with file size validation
+- **HTTP loading**: Streams into rented buffer with dynamic growth (up to `maxBytes`)
+- **Size limits**: Enforces `maxBytes` (default 50MB) to prevent excessive allocations
+- **Buffer return**: Buffers returned to pool after UI thread finishes decoding
+
+## Public API
+
+### Constructor
+
+```csharp
+public ImageLoaderService(
+    Dispatcher? uiDispatcher = null,
+    long maxBytes = AppConstants.DefaultMaxImageBytes,
+    int maxCacheEntries = AppConstants.DefaultMaxCacheEntries)
+```
+
+- **uiDispatcher**: WPF UI dispatcher (defaults to `Application.Current.Dispatcher`)
+- **maxBytes**: Maximum image size in bytes (default: 50MB)
+- **maxCacheEntries**: Soft limit for cache entries (default: 1024)
+
+### Core Methods
+
+#### LoadAsync
+
+```csharp
+Task<BitmapSource> LoadAsync(
+    string pathOrUri,
+    int? decodePixelWidth = null,
+    int? decodePixelHeight = null,
+    CancellationToken cancellationToken = default)
+```
+
+Asynchronously loads an image and returns a frozen `BitmapSource`.
+
+- **pathOrUri**: File path, absolute/relative URI, or pack URI
+- **decodePixelWidth/Height**: Optional thumbnail sizing
+- **cancellationToken**: Cancels the IO phase only
+- **Returns**: Frozen `BitmapSource` safe for cross-thread use
+
+**Behavior**:
+- Returns cached result immediately if available
+- Deduplicates concurrent requests for same resource
+- Performs IO off UI thread, decoding on UI thread
+- Freezes result for cross-thread safety
+
+#### TryGetFromCache
+
+```csharp
+bool TryGetFromCache(string key, out BitmapSource bitmap)
+```
+
+Attempts to retrieve a cached image without IO.
+
+- **key**: Same path/URI used in `LoadAsync()`
+- **bitmap**: Cached result if found
+- **Returns**: True if cache hit; false otherwise
+
+#### RemoveFromCache
+
+```csharp
+bool RemoveFromCache(string key)
+```
+
+Removes a specific cached image.
+
+- **key**: Same path/URI used in `LoadAsync()`
+- **Returns**: True if removed; false if not found
+
+#### ClearCache
+
+```csharp
+void ClearCache()
+```
+
+Clears all cached images. Use when switching themes or unloading large views.
+
+#### Dispose
+
+```csharp
+void Dispose()
+```
+
+Releases resources including `HttpClient` and cached references. Prevents further load operations.
+
+## Configuration Constants
+
+The service uses constants from `AppConstants`:
+
+- **DefaultMaxImageBytes**: 50MB (50 * 1024 * 1024)
+- **DefaultMaxCacheEntries**: 1024
+- **FileStreamBufferSize**: 80KB (81920)
+- **HttpStreamBufferSize**: 80KB (81920)
+- **IconDecodePixelWidth**: 32 pixels
+- **IconDecodePixelHeight**: 32 pixels
+
+## Thread Safety
+
+- **Cache**: `ConcurrentDictionary<string, BitmapSource>` for thread-safe access
+- **Inflight tracking**: `ConcurrentDictionary<string, Task<BitmapSource>>` for deduplication
+- **Dispatcher marshalling**: All `BitmapImage` construction on UI thread via `Dispatcher.InvokeAsync()`
+- **Frozen objects**: All returned `BitmapSource` instances frozen for cross-thread safety
+
+## Performance Characteristics
+
+- **Cache hit**: O(1) synchronous return
+- **File load**: O(n) where n = file size (async IO)
+- **HTTP load**: O(n) where n = response size (async IO + streaming)
+- **Decode**: O(n) on UI thread where n = image dimensions
+- **Memory**: Pooled buffers reduce GC pressure; frozen objects prevent cross-thread copies
+
+## Error Handling
+
+The service throws exceptions for:
+
+- **ArgumentNullException**: Missing UI dispatcher or null path
+- **FileNotFoundException**: File not found
+- **InvalidOperationException**: File/image exceeds `maxBytes`
+- **HttpRequestException**: HTTP request fails
+- **ObjectDisposedException**: Operations after disposal
+
+All exceptions are logged via Serilog with context information.
+
+## Usage Examples
+
+Below are **clean, realistic, idiomatic usage examples** for the ImageLoaderService in WPF.
 They cover the most common use-cases in real applications:
 
 * ViewModel async loading
@@ -237,11 +408,7 @@ SaveIcon   = results[2];
 
 ---
 
-Below are three focused, ready-to-drop examples that show (1) how to use the MVVM Toolkit `ObservableProperty` with the `ImageLoaderService`, (2) how to use a `BitmapSource` as an `ImageBrush` in XAML, and (3) how to load native Windows icons (from file or associated icon) and convert them to a frozen `BitmapSource`. Each example is short, idiomatic, and oriented for WPF desktop apps.
-
----
-
-# 1) MVVM Toolkit (`[ObservableProperty]`) + ImageLoaderService (async)
+# ✅ 14. MVVM Toolkit (`[ObservableProperty]`) + ImageLoaderService (async)
 
 ```csharp
 // NuGet: CommunityToolkit.Mvvm
@@ -299,7 +466,7 @@ Usage in a parent `ViewModel` (e.g., create VM and call `LoadIconAsync` when ite
 
 ---
 
-# 2) WPF `ImageBrush` usage (bind a `BitmapSource` to brushes)
+# ✅ 15. WPF `ImageBrush` usage (bind a `BitmapSource` to brushes)
 
 Two approaches: inline `ImageBrush` where `ImageSource` binds directly, or expose an `ImageBrush` property from VM.
 
@@ -335,134 +502,4 @@ Notes:
 
 * Prefer binding `ImageSource` for clarity; creating `ImageBrush` objects per row can cause extra allocations unless reused.
 * If you must reuse a brush, create it once on UI thread and reuse.
-
----
-
-# 3) Loading icons from Win32 APIs → convert to `BitmapSource`
-
-Below are two safe and practical ways to obtain Windows icons and convert them into a frozen WPF `BitmapSource`.
-
-## A — Using `Icon.ExtractAssociatedIcon` (simple for file-associations)
-
-```csharp
-using System;
-using System.Drawing; // System.Drawing.Common on .NET 6+ (Windows desktop)
-using System.Runtime.InteropServices;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Interop;
-using System.Windows.Media.Imaging;
-
-private static class WinIconLoader
-{
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool DestroyIcon(IntPtr hIcon);
-
-    /// <summary>
-    /// Extracts the associated icon for a file path and returns a frozen BitmapSource.
-    /// </summary>
-    public static Task<BitmapSource> LoadAssociatedIconAsync(string filePath)
-    {
-        return Application.Current.Dispatcher.InvokeAsync(() =>
-        {
-            using Icon ico = Icon.ExtractAssociatedIcon(filePath) ?? SystemIcons.Application;
-            var bs = Imaging.CreateBitmapSourceFromHIcon(
-                ico.Handle,
-                Int32Rect.Empty,
-                BitmapSizeOptions.FromEmptyOptions());
-            if (bs.CanFreeze) bs.Freeze();
-
-            // Icon.ExtractAssociatedIcon returns an Icon that should be disposed; DestroyIcon called by disposing Icon.
-            return bs;
-        }, System.Windows.Threading.DispatcherPriority.Normal).Task;
-    }
-}
-```
-
-Notes:
-
-* `Icon.ExtractAssociatedIcon` is synchronous (fast for small icons). We create the `BitmapSource` on the UI thread (required) then freeze it.
-* Use `SystemIcons.Application` fallback if null.
-
-## B — Using `SHGetFileInfo` (get small/large / explorer icons) — P/Invoke variant
-
-```csharp
-using System;
-using System.Runtime.InteropServices;
-using System.Windows;
-using System.Windows.Interop;
-using System.Windows.Media.Imaging;
-
-private static class ExplorerIcon
-{
-    [DllImport("shell32.dll", CharSet = CharSet.Auto)]
-    private static extern IntPtr SHGetFileInfo(string pszPath, uint dwFileAttributes, out SHFILEINFO psfi, uint cbFileInfo, uint uFlags);
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
-    private struct SHFILEINFO
-    {
-        public IntPtr hIcon;
-        public int iIcon;
-        public uint dwAttributes;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
-        public string szDisplayName;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
-        public string szTypeName;
-    }
-
-    private const uint ShGfiIcon = 0x000000100;
-    private const uint ShGfiSmallIcon = 0x000000001;
-    private const uint ShGfiLargeIcon = 0x000000000;
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool DestroyIcon(IntPtr hIcon);
-
-    /// <summary>
-    /// Returns a frozen BitmapSource for the explorer icon (small or large).
-    /// </summary>
-    public static Task<BitmapSource> LoadExplorerIconAsync(string path, bool smallIcon = true)
-    {
-        return Application.Current.Dispatcher.InvokeAsync(() =>
-        {
-            var flags = ShGfiIcon | (smallIcon ? ShGfiSmallIcon : ShGfiLargeIcon);
-            var shfi = new SHFILEINFO();
-            IntPtr res = SHGetFileInfo(path, 0, out shfi, (uint)Marshal.SizeOf(shfi), flags);
-            if (res == IntPtr.Zero || shfi.hIcon == IntPtr.Zero)
-                throw new InvalidOperationException("Failed to obtain explorer icon.");
-
-            try
-            {
-                var bmp = Imaging.CreateBitmapSourceFromHIcon(
-                    shfi.hIcon,
-                    Int32Rect.Empty,
-                    BitmapSizeOptions.FromEmptyOptions());
-                if (bmp.CanFreeze) bmp.Freeze();
-                return bmp;
-            }
-            finally
-            {
-                // release native icon handle
-                DestroyIcon(shfi.hIcon);
-            }
-        }, System.Windows.Threading.DispatcherPriority.Normal).Task;
-    }
-}
-```
-
-Notes:
-
-* `SHGetFileInfo` allows requesting small/large icons as the explorer reports them.
-* Must call `DestroyIcon` to free the native handle.
-* All UI/WPF interop (CreateBitmapSourceFromHIcon and Freeze) is done on the UI thread.
-
----
-
-## Integration tip: Use ImageLoaderService for fallback & caching
-
-* You can return the `BitmapSource` from the Win32 loader into the same cache used by `ImageLoaderService` (or call `_imageLoader.CacheAndReturn(key, bitmap)` if you expose a cache hook) so future requests reuse the frozen `BitmapSource`.
-* Typical pattern:
-
-  1. Try `_imageLoader.TryGetFromCache(key)`.
-  2. If missing, attempt Win32 icon load.
-  3. Add to cache, return the value.
 

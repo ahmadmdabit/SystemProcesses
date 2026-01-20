@@ -14,7 +14,7 @@ This document defines project-specific terminology, acronyms, and concepts used 
 ## A
 
 ### Active Process
-A process currently tracked in the application's internal cache (`activeProcesses` dictionary). Distinguished from "dead processes" that have terminated but not yet been pruned.
+A process currently tracked in the application's internal cache (`activeProcesses` dictionary). Distinguished from "dead processes" that have exitd but not yet been pruned.
 
 ### Allocation
 Memory allocation on the managed heap. The project aims to minimize allocations to reduce Garbage Collection pressure.
@@ -67,7 +67,7 @@ Windows virtual memory metric representing the total amount of memory committed 
 Calculated as: `(CurrentProcessorTime - PreviousProcessorTime) / ElapsedWallClockTime / ProcessorCount * 100`.
 
 ### CSRSS
-Client/Server Runtime Subsystem. A protected Windows system process that cannot be terminated or queried by most applications.
+Client/Server Runtime Subsystem. A protected Windows system process that cannot be exitd or queried by most applications.
 
 ---
 
@@ -258,7 +258,7 @@ Reusing object instances rather than allocating new ones. Implemented via `Micro
 Observation → Evidence → Conclusion → Recommendation. Analysis format used in code reviews.
 
 ### Orphaned Process
-A process whose parent has terminated. Displayed as root node in the process tree.
+A process whose parent has exitd. Displayed as root node in the process tree.
 
 ---
 
@@ -280,7 +280,7 @@ Microsoft tool for analyzing .NET performance and memory usage.
 Principle → Formulation → Protocol → Standards → Output. Analysis framework used in project decisions.
 
 ### PID (Process ID)
-Numeric identifier assigned by Windows to each running process. Can be reused after process termination.
+Numeric identifier assigned by Windows to each running process. Can be reused after process exition.
 
 ### Pinning
 Preventing the Garbage Collector from moving an object. Required for passing managed arrays to native code.

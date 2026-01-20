@@ -69,6 +69,14 @@ public partial class StatsView : Window
         // Position window at absolute bottom of screen (over taskbar)
         PositionAtBottom();
 
+        // Set ContextMenu PlacementTarget to this window
+        // ContextMenu is not part of visual tree, so bindings don't work
+        // Must set PlacementTarget programmatically in code-behind
+        if (ContextMenu != null)
+        {
+            ContextMenu.PlacementTarget = this;
+        }
+
         // Initial stats sync
         if (statsViewModel != null)
         {

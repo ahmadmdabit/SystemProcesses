@@ -28,7 +28,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IProcessService processService;
     private readonly ILiteDialogService liteDialogService;
     private readonly IImageLoaderService imageLoaderService;
+    private readonly RuntimeUnitExitor processExitor;
     private readonly DispatcherTimer refreshTimer;
+    private readonly TelemetryService telemetryService;
 
     // Event for notifying StatsView of system statistics updates
     public event EventHandler? StatsUpdated;
@@ -47,7 +49,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly Stack<ProcessItemViewModel> reusableStack = new();
 
     // Zero-Allocation Cache for strings "0" to "100"
-    private static readonly BitmapSource[] cpuIconsCache = new BitmapSource[101];
+    private static readonly BitmapSource[] cpuIconsCache = new BitmapSource[AppConstants.CpuIconCacheSize];
 
     [ObservableProperty]
     private ImageSource cpuTrayIconImageSource = cpuIconsCache[0];
@@ -133,7 +135,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(PauseResumeText))]
     private bool isPaused;
 
-    private int refreshInterval = 1000;
+    private int refreshInterval = AppConstants.DefaultRefreshIntervalMs;
 
     // Concurrency control
     private readonly SemaphoreSlim refreshLock = new(1, 1);
@@ -178,6 +180,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         this.processService = processService;
         this.liteDialogService = liteDialogService;
         this.imageLoaderService = imageLoaderService;
+        this.processExitor = new RuntimeUnitExitor(liteDialogService, viewModelCache);
+        
+        // Initialize telemetry service (disabled by default, can be enabled via config)
+        string diagnosticDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "SystemProcesses", "Diagnostics");
+        this.telemetryService = new TelemetryService(diagnosticDir, isEnabled: false);
 
         InitializeCpuIconsCacheAsync().GetAwaiter().GetResult();
 
@@ -196,16 +205,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private async Task InitializeCpuIconsCacheAsync()
     {
-        cpuIconsCache[0] = await imageLoaderService.LoadAsync("pack://application:,,,/Resources/Images/TrayIcon/SystemProcess-Tray.ico", 32, 32);
+        cpuIconsCache[0] = await imageLoaderService.LoadAsync("pack://application:,,,/Resources/Images/TrayIcon/SystemProcess-Tray.ico", AppConstants.IconDecodePixelWidth, AppConstants.IconDecodePixelHeight);
         for (int i = 1; i < 10; i++)
         {
-            cpuIconsCache[i] = await imageLoaderService.LoadAsync($"pack://application:,,,/Resources/Images/TrayIcon/SystemProcess-Tray-0{i}.ico", 32, 32);
+            cpuIconsCache[i] = await imageLoaderService.LoadAsync($"pack://application:,,,/Resources/Images/TrayIcon/SystemProcess-Tray-0{i}.ico", AppConstants.IconDecodePixelWidth, AppConstants.IconDecodePixelHeight);
         }
         for (int i = 10; i < 100; i++)
         {
-            cpuIconsCache[i] = await imageLoaderService.LoadAsync($"pack://application:,,,/Resources/Images/TrayIcon/SystemProcess-Tray-{i}.ico", 32, 32);
+            cpuIconsCache[i] = await imageLoaderService.LoadAsync($"pack://application:,,,/Resources/Images/TrayIcon/SystemProcess-Tray-{i}.ico", AppConstants.IconDecodePixelWidth, AppConstants.IconDecodePixelHeight);
         }
-        cpuIconsCache[100] = await imageLoaderService.LoadAsync("pack://application:,,,/Resources/Images/TrayIcon/SystemProcess-Tray-100.ico", 32, 32);
+        cpuIconsCache[100] = await imageLoaderService.LoadAsync("pack://application:,,,/Resources/Images/TrayIcon/SystemProcess-Tray-100.ico", AppConstants.IconDecodePixelWidth, AppConstants.IconDecodePixelHeight);
     }
 
     partial void OnSearchTextChanged(string value) => Task.Run(RefreshProcessesAsync);
@@ -219,12 +228,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void TogglePause() => IsPaused = !IsPaused;
 
+    /// <summary>
+    /// Refreshes the process tree and updates all UI elements.
+    /// </summary>
+    /// <remarks>
+    /// This method implements concurrency control to prevent overlapping refresh cycles.
+    /// If a refresh is already running, the request is marked as pending and executed
+    /// immediately after the current refresh completes. This ensures rapid updates
+    /// (like typing in search) are not dropped.
+    /// </remarks>
     [RelayCommand]
     private async Task RefreshProcessesAsync()
     {
-        // FIX: Concurrency Loop
-        // If a refresh is already running, mark pending so it runs again immediately after.
-        // This ensures rapid updates (like typing) are not dropped.
         // Non-blocking check to coalesce rapid updates (like typing)
         if (refreshLock.CurrentCount == 0)
         {
@@ -239,51 +254,35 @@ public partial class MainViewModel : ObservableObject, IDisposable
             do
             {
                 isRefreshPending = false;
+                
+                // Record refresh cycle start for telemetry
+                telemetryService.RecordRefreshCycleStart();
+                
                 var (rootInfos, stats) = await processService.GetProcessTreeAsync();
                 var filteredRoots = ApplyFilters(rootInfos);
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     SyncProcessCollection(Processes, filteredRoots);
-
-                    // Update Stats
-                    TotalProcessCount = stats.ProcessCount;
-                    TotalThreadCount = stats.ThreadCount;
-                    TotalHandleCount = stats.HandleCount;
-                    TotalMemoryBytes = stats.TotalMemory;
-                    TotalCpuUsage = stats.TotalCpu;
-                    TotalPhysicalMemory = stats.TotalPhysicalMemory;
-                    AvailablePhysicalMemory = stats.AvailablePhysicalMemory;
-                    TotalCommitLimit = stats.TotalCommitLimit;
-                    AvailableCommitLimit = stats.AvailableCommitLimit;
-
-                    // Calculate Percentages (Zero-Alloc)
-                    if (stats.TotalPhysicalMemory > 0)
-                        RamFreePercentage = (double)stats.AvailablePhysicalMemory / stats.TotalPhysicalMemory * 100.0;
-
-                    if (stats.TotalCommitLimit > 0)
-                        VmFreePercentage = (double)stats.AvailableCommitLimit / stats.TotalCommitLimit * 100.0;
-
-                    TotalIoBytesPerSec = stats.TotalIoBytesPerSec;
-                    DiskActivePercent = stats.DiskActivePercent;
-
-                    // Store SystemStats for StatsView
-                    SystemStats = stats;
-
-                    // Update Storage Stats
-                    UpdateStorageStats(stats);
-
-                    // Update Tray Tooltip
+                    UpdateStatistics(stats);
                     UpdateTrayState(stats);
-
-                    // Notify StatsView of stats update
                     StatsUpdated?.Invoke(this, EventArgs.Empty);
                 });
+                
+                // Record refresh cycle end for telemetry
+                telemetryService.RecordRefreshCycleEnd();
+                
+                // Update memory metrics periodically (every 10 cycles)
+                if (telemetryService.GetMetricsSnapshot().RefreshCycleCount % 10 == 0)
+                {
+                    telemetryService.UpdateMemoryMetrics();
+                }
             } while (isRefreshPending);
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Error: {message}", ex.Message);
+            Log.Error(ex, "Error during process refresh: {Message}", ex.Message);
+            telemetryService.RecordException(ex, "RefreshProcessesAsync");
         }
         finally
         {
@@ -291,6 +290,52 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Updates all statistics properties from the system stats snapshot.
+    /// </summary>
+    /// <param name="stats">The system statistics snapshot.</param>
+    /// <remarks>
+    /// This method updates process count, memory, CPU, and storage statistics.
+    /// All calculations are zero-allocation (no LINQ, no string allocations).
+    /// </remarks>
+    private void UpdateStatistics(SystemStats stats)
+    {
+        TotalProcessCount = stats.ProcessCount;
+        TotalThreadCount = stats.ThreadCount;
+        TotalHandleCount = stats.HandleCount;
+        TotalMemoryBytes = stats.TotalMemory;
+        TotalCpuUsage = stats.TotalCpu;
+        TotalPhysicalMemory = stats.TotalPhysicalMemory;
+        AvailablePhysicalMemory = stats.AvailablePhysicalMemory;
+        TotalCommitLimit = stats.TotalCommitLimit;
+        AvailableCommitLimit = stats.AvailableCommitLimit;
+
+        // Calculate Percentages (Zero-Alloc)
+        if (stats.TotalPhysicalMemory > 0)
+            RamFreePercentage = (double)stats.AvailablePhysicalMemory / stats.TotalPhysicalMemory * 100.0;
+
+        if (stats.TotalCommitLimit > 0)
+            VmFreePercentage = (double)stats.AvailableCommitLimit / stats.TotalCommitLimit * 100.0;
+
+        TotalIoBytesPerSec = stats.TotalIoBytesPerSec;
+        DiskActivePercent = stats.DiskActivePercent;
+
+        // Store SystemStats for StatsView
+        SystemStats = stats;
+
+        // Update Storage Stats
+        UpdateStorageStats(stats);
+    }
+
+    /// <summary>
+    /// Applies search and isolation filters to the process tree.
+    /// </summary>
+    /// <param name="roots">The root processes to filter.</param>
+    /// <returns>The filtered process tree, or empty list if isolation target not found.</returns>
+    /// <remarks>
+    /// If tree isolation is active, returns only the isolated process and its children.
+    /// Otherwise, applies search text filter to process names and PIDs.
+    /// </remarks>
     private List<ProcessInfo> ApplyFilters(List<ProcessInfo> roots)
     {
         // Check if we have an active isolation target
@@ -312,6 +357,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return FilterGraphBySearch(roots, SearchText);
     }
 
+    /// <summary>
+    /// Finds a process in the process tree by PID.
+    /// </summary>
+    /// <param name="nodes">The nodes to search.</param>
+    /// <param name="pid">The process ID to find.</param>
+    /// <returns>The ProcessInfo if found, null otherwise.</returns>
     private ProcessInfo? FindProcessInGraph(List<ProcessInfo> nodes, int pid)
     {
         foreach (var node in nodes)
@@ -323,6 +374,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return null;
     }
 
+    /// <summary>
+    /// Filters the process tree by search text.
+    /// </summary>
+    /// <param name="nodes">The nodes to filter.</param>
+    /// <param name="text">The search text.</param>
+    /// <returns>A filtered process tree containing only matching processes and their ancestors.</returns>
+    /// <remarks>
+    /// Clones matching processes to attach filtered children, preserving the original tree structure.
+    /// </remarks>
     private List<ProcessInfo> FilterGraphBySearch(List<ProcessInfo> nodes, string text)
     {
         var result = new List<ProcessInfo>();
@@ -357,6 +417,22 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return result;
     }
 
+    /// <summary>
+    /// Synchronizes the UI collection with the source process data using differential updates.
+    /// </summary>
+    /// <param name="collection">The ObservableCollection to update.</param>
+    /// <param name="sourceInfos">The source process data.</param>
+    /// <param name="depth">The tree depth (for hierarchy tracking).</param>
+    /// <remarks>
+    /// This method implements zero-allocation differential updates:
+    /// - Removes processes that no longer exist
+    /// - Adds new processes
+    /// - Reorders existing processes
+    /// - Updates process data in-place
+    /// - Preserves UI state (expansion, selection, scroll position)
+    /// 
+    /// Uses reusable HashSet and Stack to avoid allocations.
+    /// </remarks>
     private void SyncProcessCollection(ObservableCollection<ProcessItemViewModel> collection, List<ProcessInfo> sourceInfos, int depth = 0)
     {
         // Zero-Allocation: Reuse the HashSet
@@ -408,6 +484,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Builds the ViewModel cache for a process and all its descendants.
+    /// </summary>
+    /// <param name="root">The root process ViewModel.</param>
+    /// <remarks>
+    /// Uses iterative stack-based traversal to avoid recursion allocations.
+    /// </remarks>
     public void BuildCache(ProcessItemViewModel root)
     {
         // Iterative stack-based traversal avoids recursion allocations
@@ -428,6 +511,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Removes a process from the ViewModel cache.
+    /// </summary>
+    /// <param name="id">The process ID to remove.</param>
+    /// <param name="includeChildren">Whether to remove child processes as well.</param>
+    /// <returns>True if the process was found and removed, false otherwise.</returns>
     public bool RemoveFromCache(int id, bool includeChildren)
     {
         if (!viewModelCache.TryGetValue(id, out var node))
@@ -454,6 +543,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Updates storage statistics display text.
+    /// </summary>
+    /// <param name="stats">The system statistics snapshot.</param>
+    /// <remarks>
+    /// Updates both the main UI storage stats text and the tray tooltip storage text.
+    /// Uses StringBuilderPool for zero-allocation string formatting.
+    /// </remarks>
     private void UpdateStorageStats(SystemStats stats)
     {
         if (stats.DriveCount == 0 || stats.Drives == null)
@@ -483,13 +580,22 @@ public partial class MainViewModel : ObservableObject, IDisposable
         StorageStatsTrayText = sb2.Build().TrimEnd();
     }
 
+    /// <summary>
+    /// Updates the system tray icon and tooltip.
+    /// </summary>
+    /// <param name="stats">The system statistics snapshot.</param>
+    /// <remarks>
+    /// Updates the tray icon based on CPU usage (0-100 icons pre-loaded).
+    /// Updates the tooltip with CPU, RAM, VM, and disk usage percentages.
+    /// Uses StringBuilderPool for zero-allocation string formatting.
+    /// </remarks>
     private void UpdateTrayState(SystemStats stats)
     {
         // ...... PART 1: Update Icon (CPU Number) ......
 
         // Clamp value to 0-100 to ensure we never go out of bounds of our cache
         // Cast to int is safe because we only need whole numbers for the icon
-        int cpuInt = (int)Math.Clamp(stats.TotalCpu, 0, 100);
+        int cpuInt = (int)Math.Clamp(stats.TotalCpu, 0, AppConstants.CpuPercentageMaxClamp);
 
         // Use the static cache to avoid new allocation
         CpuTrayIconImageSource = cpuIconsCache[cpuInt];
@@ -581,7 +687,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
             catch (Exception ex)
             {
-                Log.Warning(ex, "Ignored");
+                Log.Warning(ex, "Failed to copy process path to clipboard for PID {Pid}", SelectedProcess?.Pid ?? -1);
                 await liteDialogService.ShowAsync(new LiteDialogRequest(
                     title: "Error",
                     message: $"Failed to copy path: {ex.Message}",
@@ -601,343 +707,83 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Sends a graceful close request to the selected process.
+    /// </summary>
+    /// <remarks>
+    /// Delegates to ProcessExitor service for graceful exition.
+    /// Attempts to close the process window gracefully. If the process doesn't respond
+    /// within 3 seconds, prompts the user to force stop it.
+    /// </remarks>
     [RelayCommand(CanExecute = nameof(CanExecuteProcessAction))]
     private async Task GracefulEndProcessAsync()
     {
         if (SelectedProcess == null) return;
-
-        // Capture state to prevent race conditions
-        int pid = SelectedProcess.Pid;
-        string name = SelectedProcess.Name;
-
-        if (await liteDialogService.ShowAsync(new LiteDialogRequest(
-                title: "Graceful End",
-                message: $"Send close request to '{name}' (PID: {pid})?",
-                buttons: LiteDialogButton.YesNo,
-                image: LiteDialogImage.Question
-            )) != LiteDialogResult.Yes)
-        {
-            return;
-        }
-
-        await Task.Run(async () =>
-        {
-            try
-            {
-                using var process = Process.GetProcessById(pid);
-
-                // PID Reuse Check: Verify StartTime if possible (requires capturing it earlier,
-                // but here we assume short duration between selection and action).
-                // Ideally, ProcessInfo should carry StartTime.
-
-                process.Refresh();
-                if (process.CloseMainWindow())
-                {
-                    if (!process.WaitForExit(3000))
-                    {
-                        await Application.Current.Dispatcher.InvokeAsync(async () =>
-                        {
-                            if (await liteDialogService.ShowAsync(new LiteDialogRequest(
-                                    title: "Process Unresponsive",
-                                    message: $"Process '{name}' did not close within 3 seconds.\nForce kill it?",
-                                    buttons: LiteDialogButton.YesNo,
-                                    image: LiteDialogImage.Warning
-                                )) == LiteDialogResult.Yes)
-                            {
-                                process.Kill();
-                            }
-                        });
-                    }
-                }
-                else
-                {
-                    await Application.Current.Dispatcher.InvokeAsync(async () =>
-                    {
-                        if (await liteDialogService.ShowAsync(new LiteDialogRequest(
-                                title: "No Window Found",
-                                message: $"Could not send close request (No Window or Unresponsive).\nForce kill '{name}'?",
-                                buttons: LiteDialogButton.YesNo,
-                                image: LiteDialogImage.Warning
-                            )) == LiteDialogResult.Yes)
-                        {
-                            process.Kill();
-                        }
-                    });
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "Ignored");
-                await Application.Current.Dispatcher.InvokeAsync(async () =>
-                    await liteDialogService.ShowAsync(new LiteDialogRequest(
-                        title: "Error",
-                        message: $"Error: {ex.Message}",
-                        buttons: LiteDialogButton.OK,
-                        image: LiteDialogImage.Error
-                    )));
-            }
-        });
+        await processExitor.GracefullyExitAsync(SelectedProcess.Pid, SelectedProcess.Name);
     }
 
+    /// <summary>
+    /// Sends a graceful close request to the selected process and all its children.
+    /// </summary>
+    /// <remarks>
+    /// Delegates to ProcessExitor service for graceful tree exition.
+    /// Attempts to close the entire process tree gracefully. Waits up to 3 seconds per attempt
+    /// for processes to exit. If any processes remain after 3 attempts, prompts the user to
+    /// force stop the entire tree.
+    /// </remarks>
     [RelayCommand(CanExecute = nameof(CanExecuteProcessAction))]
     private async Task GracefulEndProcessTreeAsync()
     {
-        var selected = SelectedProcess;
-        if (selected == null) return;
-
-        int rootPid = selected.Pid;
-        string rootName = selected.Name;
-
-        if (await liteDialogService.ShowAsync(new LiteDialogRequest(
-                title: "Graceful End Tree",
-                message: $"Send close request to '{rootName}' (PID: {rootPid}) and all children?",
-                buttons: LiteDialogButton.YesNo,
-                image: LiteDialogImage.Question
-            )) != LiteDialogResult.Yes)
-        {
-            return;
-        }
-
-        // 1. Collect all PIDs in the tree (Bottom-Up approach preferred for closing)
-        var pidsToClose = new List<int>();
-        void CollectPids(ProcessItemViewModel vm)
-        {
-            foreach (var child in vm.Children) CollectPids(child);
-            pidsToClose.Add(vm.Pid);
-        }
-
-        // Use cache to find the current tree structure
-        if (viewModelCache.TryGetValue(rootPid, out var rootVm))
-        {
-            CollectPids(rootVm);
-        }
-        else
-        {
-            pidsToClose.Add(rootPid);
-        }
-
-        // 2. Send Close Requests asynchronously
-        await Task.Run(() =>
-        {
-            foreach (var pid in pidsToClose)
-            {
-                try
-                {
-                    using var p = Process.GetProcessById(pid);
-                    p.Refresh();
-                    p.CloseMainWindow();
-                }
-                catch (Exception ex)
-                {
-                    /* Ignore access denied or already exited */
-                    Log.Warning(ex, "Ignored");
-                }
-            }
-        });
-
-        var remaining = new HashSet<int>(pidsToClose);
-        var remainingTries = 3;
-        var delay = 1000;
-        var tryNumber = 0;
-        while (true)
-        {
-            ++tryNumber;
-
-            // 3. Verify
-            var closedPids = new HashSet<int>();
-            foreach (var pid in remaining)
-            {
-                try
-                {
-                    using var p = Process.GetProcessById(pid);
-                    if (p == null)
-                    {
-                        closedPids.Add(pid);
-                    }
-                    else
-                    {
-                        p.Refresh();
-                        if (p.HasExited)
-                        {
-                            closedPids.Add(pid);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    /* Assume exited if cannot access */
-                    Log.Warning(ex, "Ignored");
-                }
-            }
-
-            foreach (var pid in closedPids)
-            {
-                remaining.Remove(pid);
-            }
-
-            if (remaining.Count == 0)
-            {
-                break;
-            }
-            else
-            {
-                if (--remainingTries == 0)
-                    break;
-
-                remaining.Clear();
-            }
-
-            // 4. Wait for processes to exit
-            await Task.Delay(delay * tryNumber);
-        }
-
-        if (remaining.Count > 0)
-        {
-            if (await liteDialogService.ShowAsync(new LiteDialogRequest(
-                    title: "Incomplete Shutdown",
-                    message: $"{remaining.Count} processes in the tree are still running.\nForce kill the entire tree?",
-                    buttons: LiteDialogButton.YesNo,
-                    image: LiteDialogImage.Warning
-                )) == LiteDialogResult.Yes)
-            {
-                try
-                {
-                    StopProcessAndChildren(rootPid);
-                    await liteDialogService.ShowAsync(new LiteDialogRequest(
-                        title: "Success",
-                        message: "Tree force terminated.",
-                        buttons: LiteDialogButton.OK,
-                        image: LiteDialogImage.Success
-                    ));
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning(ex, "Ignored");
-                    await liteDialogService.ShowAsync(new LiteDialogRequest(
-                        title: "Error",
-                        message: $"Error terminating tree: {ex.Message}",
-                        buttons: LiteDialogButton.OK,
-                        image: LiteDialogImage.Error
-                    ));
-                }
-            }
-        }
-        else
-        {
-            await liteDialogService.ShowAsync(new LiteDialogRequest(
-                title: "Success",
-                message: "All processes in tree closed successfully.",
-                buttons: LiteDialogButton.OK,
-                image: LiteDialogImage.Success
-            ));
-        }
+        if (SelectedProcess == null) return;
+        await processExitor.GracefullyExitTreeAsync(SelectedProcess.Pid, SelectedProcess.Name);
     }
 
+    /// <summary>
+    /// Force exits the selected process immediately.
+    /// </summary>
+    /// <remarks>
+    /// Delegates to ProcessExitor service for force exition.
+    /// Sends a SIGKILL signal to the process, exiting it immediately without
+    /// allowing cleanup. Use GracefulEndProcessAsync for graceful shutdown.
+    /// </remarks>
     [RelayCommand(CanExecute = nameof(CanExecuteProcessAction))]
     private async Task EndProcess()
     {
         if (SelectedProcess == null) return;
-        if (await liteDialogService.ShowAsync(new LiteDialogRequest(
-                title: "End Process",
-                message: $"End process '{SelectedProcess.Name}' (PID: {SelectedProcess.Pid})?",
-                buttons: LiteDialogButton.YesNo,
-                image: LiteDialogImage.Warning
-            )) == LiteDialogResult.Yes)
-        {
-            try
-            {
-                using var process = Process.GetProcessById(SelectedProcess.Pid);
-                process.Kill();
-                await liteDialogService.ShowAsync(new LiteDialogRequest(
-                    title: "Success",
-                    message: "Process terminated successfully.",
-                    buttons: LiteDialogButton.OK,
-                    image: LiteDialogImage.Success
-                ));
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "Ignored");
-                await liteDialogService.ShowAsync(new LiteDialogRequest(
-                    title: "Error",
-                    message: $"Failed to end process: {ex.Message}",
-                    buttons: LiteDialogButton.OK,
-                    image: LiteDialogImage.Error
-                ));
-            }
-        }
+        await processExitor.ForceExitAsync(SelectedProcess.Pid, SelectedProcess.Name);
     }
 
+    /// <summary>
+    /// Force exits the selected process and all its children.
+    /// </summary>
+    /// <remarks>
+    /// Delegates to ProcessExitor service for force tree exition.
+    /// Recursively exits the entire process tree. Children are exitd first
+    /// (bottom-up approach) to avoid orphaned processes.
+    /// </remarks>
     [RelayCommand(CanExecute = nameof(CanExecuteProcessAction))]
     private async Task EndProcessTree()
     {
-        if (SelectedProcess == null)
-            return;
-
-        if (await liteDialogService.ShowAsync(new LiteDialogRequest(
-                title: "End Process Tree",
-                message: $"Are you sure you want to end process tree for '{SelectedProcess.Name}' (PID: {SelectedProcess.Pid}) and all its children?",
-                buttons: LiteDialogButton.YesNo,
-                image: LiteDialogImage.Warning
-            )) == LiteDialogResult.Yes)
-        {
-            try
-            {
-                StopProcessAndChildren(SelectedProcess.Pid);
-                await liteDialogService.ShowAsync(new LiteDialogRequest(
-                    title: "Success",
-                    message: "Process tree terminated successfully.",
-                    buttons: LiteDialogButton.OK,
-                    image: LiteDialogImage.Success
-                ));
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "Ignored");
-                await liteDialogService.ShowAsync(new LiteDialogRequest(
-                    title: "Error",
-                    message: $"Failed to end process tree: {ex.Message}",
-                    buttons: LiteDialogButton.OK,
-                    image: LiteDialogImage.Error
-                ));
-            }
-        }
+        if (SelectedProcess == null) return;
+        await processExitor.ForceExitTreeAsync(SelectedProcess.Pid, SelectedProcess.Name);
     }
 
+    /// <summary>
+    /// Determines whether process action commands can execute.
+    /// </summary>
+    /// <returns>True if a process is selected, false otherwise.</returns>
     private bool CanExecuteProcessAction() => SelectedProcess != null;
 
-    private void StopProcessAndChildren(int pid)
-    {
-        if (!viewModelCache.TryGetValue(pid, out var vm))
-            return;
-
-        var processInfo = vm.ProcessInfo;
-
-        // Stop children first
-        foreach (var child in processInfo.Children)
-        {
-            StopProcessAndChildren(child.Pid);
-        }
-
-        // Then stop the process itself
-        try
-        {
-            using var process = Process.GetProcessById(pid);
-
-            // PID Reuse Check: Verify StartTime if possible (requires capturing it earlier,
-            // but here we assume short duration between selection and action).
-            // Ideally, ProcessInfo should carry StartTime.
-
-            process.Refresh();
-            process.Kill();
-        }
-        catch (Exception ex)
-        {
-            // Process may have already exited
-            Log.Warning(ex, "Ignored");
-        }
-    }
-
+    /// <summary>
+    /// Shows detailed information about the selected process.
+    /// </summary>
+    /// <remarks>
+    /// Displays process name, PID, CPU usage, memory, virtual memory, service status,
+    /// start time, processor time, thread count, handle count, and command line.
+    /// 
+    /// Extended details (start time, threads, handles, file path) are retrieved from
+    /// the live process and may fail with access denied or process exited errors.
+    /// </remarks>
     [RelayCommand(CanExecute = nameof(CanExecuteProcessAction))]
     private async Task ShowProcessDetails()
     {
@@ -964,7 +810,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             details.AppendLine("\n(Extended details unavailable - Access Denied or Process Exited)");
-            Log.Warning(ex, "(Extended details unavailable - Access Denied or Process Exited)");
+            Log.Warning(ex, "Failed to retrieve extended process details for PID {Pid}", SelectedProcess.Pid);
         }
 
         if (!string.IsNullOrWhiteSpace(SelectedProcess.Parameters))
@@ -981,6 +827,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ));
     }
 
+    /// <summary>
+    /// Opens the directory containing the selected process executable.
+    /// </summary>
+    /// <remarks>
+    /// Retrieves the process executable path and opens its directory in Windows Explorer.
+    /// 
+    /// Error handling:
+    /// - Access denied: Logged as warning, error shown to user
+    /// - Process exited: Logged as warning, error shown to user
+    /// - Directory not found: Error shown to user
+    /// </remarks>
     [RelayCommand(CanExecute = nameof(CanExecuteProcessAction))]
     private async Task OpenProcessDirectory()
     {
@@ -1021,7 +878,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            Log.Warning(ex, "Ignored");
+            Log.Warning(ex, "Failed to open process directory for PID {Pid}", SelectedProcess.Pid);
             await liteDialogService.ShowAsync(new LiteDialogRequest(
                 title: "Error",
                 message: $"Failed to open process directory: {ex.Message}",
@@ -1031,6 +888,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Formats a byte count into a human-readable string (B, KB, MB, GB, TB).
+    /// </summary>
+    /// <param name="bytes">The number of bytes to format.</param>
+    /// <returns>A formatted string with appropriate unit.</returns>
+    /// <remarks>
+    /// Uses zero-allocation approach with constants and conditional logic.
+    /// No LINQ, no string interpolation in hot path.
+    /// </remarks>
     private static string FormatBytes(long bytes)
     {
         const long KB = 1024;
@@ -1045,5 +911,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return $"{bytes} B";
     }
 
-    public void Dispose() => refreshTimer?.Stop();
+    /// <summary>
+    /// Cleans up resources used by the ViewModel.
+    /// </summary>
+    public void Dispose()
+    {
+        refreshTimer?.Stop();
+        telemetryService?.Dispose();
+    }
 }

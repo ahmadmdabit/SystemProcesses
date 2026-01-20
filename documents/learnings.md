@@ -568,7 +568,7 @@ unsafe
 
 ### Pattern 4.1: Composite Key for Process Identity
 
-**Challenge**: PIDs can be reused by the OS. A process that terminates (PID 1234) and a new process starting with the same PID should be treated as distinct entities.
+**Challenge**: PIDs can be reused by the OS. A process that exits (PID 1234) and a new process starting with the same PID should be treated as distinct entities.
 
 **Solution**: Use `(PID, CreateTime)` tuple as identity:
 ```csharp
@@ -941,7 +941,7 @@ public static partial int NtQuerySystemInformation(...);
 
 **Current**: Full snapshot every refresh cycle.
 
-**Future**: Use `NtNotifyChangeProcess` or ETW (Event Tracing for Windows) to get process creation/termination events.
+**Future**: Use `NtNotifyChangeProcess` or ETW (Event Tracing for Windows) to get process creation/exition events.
 
 **Benefit**: 
 - Reduce CPU usage when system is idle
