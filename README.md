@@ -109,12 +109,43 @@ The core update loop in `ProcessService.UpdateProcessSnapshot` follows this patt
 4.  **Prune:** Use a pooled `HashSet<int>` to track seen PIDs. Remove any PIDs in the dictionary that weren't seen in the current snapshot.
 5.  **Result:** A list of updated objects is returned. No new lists or wrapper objects are created for existing processes.
 
+## 📚 Documentation
+
+Comprehensive documentation is available in the `documents/` directory:
+
+*   **[architecture.md](documents/architecture.md)** - System design and architectural patterns
+*   **[learnings.md](documents/learnings.md)** - Technical decisions, lessons learned, and recent fixes (January 2026)
+*   **[coding-standards.md](documents/coding-standards.md)** - Code conventions, validation patterns, and best practices
+*   **[examples.md](documents/examples.md)** - Practical code examples and patterns
+*   **[dependencies.md](documents/dependencies.md)** - NuGet packages and their rationale
+*   **[api-reference.md](documents/api-reference.md)** - Windows API documentation
+*   **[glossary.md](documents/glossary.md)** - Project terminology
+
+### Recent Improvements (January 2026)
+
+This project has been significantly enhanced with:
+
+*   ✅ **Comprehensive Unit Testing** - NUnit test suite with 8 critical path tests
+*   ✅ **Unsafe Code Validation** - Buffer bounds checking, pointer arithmetic validation, string encoding validation
+*   ✅ **Thread-Safe Caching** - ConcurrentDictionary for ViewModel cache
+*   ✅ **Detailed Error Handling** - PDH initialization logging with fallback mechanisms
+*   ✅ **Magic Numbers Extraction** - Named constants for configuration values
+*   ✅ **Resource Cleanup** - Finalizer for ImageLoaderService
+
+See [DOCUMENTATION-UPDATES-COMPLETED.md](DOCUMENTATION-UPDATES-COMPLETED.md) for detailed information about all recent improvements.
+
 ## 🤝 Contributing
 
-Contributions are welcome! Please ensure any PRs maintaining the **Zero-Allocation** philosophy:
+Contributions are welcome! Please ensure any PRs maintain the **Zero-Allocation** philosophy and follow our coding standards:
+
 *   Avoid LINQ in hot paths (refresh loops).
 *   Use `StringBuilderPool` for string concatenation.
+*   Always validate unsafe code (buffer bounds, pointer arithmetic).
+*   Use thread-safe collections for shared state (ConcurrentDictionary).
 *   Profile memory usage before submitting.
+*   Add unit tests for critical paths.
+
+For detailed guidelines, see [coding-standards.md](documents/coding-standards.md).
 
 ## 📄 License
 

@@ -496,4 +496,12 @@ public sealed class ImageLoaderService : IDisposable, IImageLoaderService
         }
         finally { disposeLock.Release(); }
     }
+
+    /// <summary>
+    /// Finalizer ensures HttpClient is disposed even if Dispose() is not called.
+    /// </summary>
+    ~ImageLoaderService()
+    {
+        Dispose();
+    }
 }

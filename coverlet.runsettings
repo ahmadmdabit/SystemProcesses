@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <!-- 
+            This is the critical part. We are telling Coverlet:
+            1. Format: Use the 'opencover' format.
+            2. Output: Place the result in a 'TestResults' directory, and name the file based on the project.
+          -->
+          <Format>opencover</Format>
+          <ResultsDirectory>TestResults</ResultsDirectory>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -37,7 +38,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     // Cache ViewModels to preserve state (Expansion, Selection)
     // Key: PID
-    private readonly Dictionary<int, ProcessItemViewModel> viewModelCache = [];
+    // THREAD-SAFE: ConcurrentDictionary prevents race conditions between UI and background refresh threads
+    private readonly ConcurrentDictionary<int, ProcessItemViewModel> viewModelCache = [];
 
     // Reusable collections for SyncProcessCollection to ensure Zero-Allocation
     private readonly HashSet<int> reusablePidSet = [];
@@ -438,7 +440,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         while (reusableStack.Count > 0)
         {
             var current = reusableStack.Pop();
-            viewModelCache.Remove(current.Pid);
+            viewModelCache.TryRemove(current.Pid, out _);
 
             if (includeChildren)
             {

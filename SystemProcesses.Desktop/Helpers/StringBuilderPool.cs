@@ -63,11 +63,10 @@ public sealed class StringBuilderPooledObjectPolicy : IPooledObjectPolicy<String
 /// </summary>
 public static class StringBuilderPool
 {
-    // Tunable parameters:
-    private const int DefaultCapacity = 256;       // initial capacity for new builders
-
-    private const int MaxRetainedBuilders = 32;    // how many builders DefaultObjectPool will keep per-thread bucket
-    private const int MaxBuilderCapacity = 1 << 16; // 65,536 chars max to retain
+    // Named constants for pool configuration
+    private const int DefaultCapacity = 256;           // Initial capacity for new builders
+    private const int MaxRetainedBuilders = 32;        // Max builders per-thread bucket
+    private const int MaxBuilderCapacity = 1 << 16;    // 65,536 chars max to retain (64KB)
 
     private static readonly ObjectPool<StringBuilder> sbPool;
 

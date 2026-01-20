@@ -13,6 +13,11 @@ namespace SystemProcesses.Desktop.Services;
 
 public class ProcessService : IProcessService, IDisposable
 {
+    // Named constants for buffer management
+    private const int InitialBufferSize = 1024 * 1024;      // 1 MB initial buffer for process data
+    private const int MaxBufferSize = 100 * 1024 * 1024;    // 100 MB max buffer size
+    private const int BufferPaddingSize = 1024 * 1024;      // 1 MB padding when resizing
+
     private struct ProcessHistory
     {
         public long TotalProcessorTime;
@@ -34,7 +39,7 @@ public class ProcessService : IProcessService, IDisposable
     // Reusable buffer for NtQuerySystemInformation
     private IntPtr buffer = IntPtr.Zero;
 
-    private int bufferSize = 1024 * 1024;
+    private int bufferSize = InitialBufferSize;
     private long prevTicks = 0;
 
     // PDH Fields
@@ -62,6 +67,7 @@ public class ProcessService : IProcessService, IDisposable
 
             if (status != 0)
             {
+                Log.Warning("PdhOpenQuery failed with status 0x{Status:X8}. Disk I/O monitoring disabled.", status);
                 return;
             }
 
@@ -72,6 +78,7 @@ public class ProcessService : IProcessService, IDisposable
             // 3. Fallback to LogicalDisk
             if (status != 0)
             {
+                Log.Warning("PdhAddEnglishCounter (PhysicalDisk) failed with status 0x{Status:X8}. Trying LogicalDisk.", status);
                 const string logPath = "\\LogicalDisk(_Total)\\% Idle Time";
                 status = SystemPrimitives.PdhAddEnglishCounter(pdhQuery, logPath, IntPtr.Zero, out pdhDiskIdleCounter);
             }
@@ -84,12 +91,21 @@ public class ProcessService : IProcessService, IDisposable
                 if (status == 0)
                 {
                     isPdhInitialized = true;
+                    Log.Information("PDH initialized successfully for disk I/O monitoring");
                 }
+                else
+                {
+                    Log.Warning("PdhCollectQueryData failed with status 0x{Status:X8}. Disk I/O monitoring disabled.", status);
+                }
+            }
+            else
+            {
+                Log.Warning("PdhAddEnglishCounter (LogicalDisk) failed with status 0x{Status:X8}. Disk I/O monitoring disabled.", status);
             }
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "PDH CRITICAL EXCEPTION: {message}", ex.Message);
+            Log.Error(ex, "PDH initialization exception: {Message}. Disk I/O monitoring disabled.", ex.Message);
         }
     }
 
@@ -171,6 +187,13 @@ public class ProcessService : IProcessService, IDisposable
 
     private unsafe SystemStats UpdateProcessSnapshot()
     {
+        // CRITICAL: Validate buffer before use
+        if (buffer == IntPtr.Zero || bufferSize <= 0)
+        {
+            Log.Error("Buffer not initialized: buffer={Buffer}, size={Size}", buffer, bufferSize);
+            return new SystemStats();
+        }
+
         int requiredSize = 0;
         int status = SystemPrimitives.NtQuerySystemInformation(
             SystemPrimitives.SystemProcessInformationValue,
@@ -180,9 +203,24 @@ public class ProcessService : IProcessService, IDisposable
 
         if (status == SystemPrimitives.StatusInfoLengthMismatch)
         {
+            // CRITICAL: Validate required size before allocation
+            if (requiredSize <= 0 || requiredSize > MaxBufferSize) // Max 100MB
+            {
+                Log.Error("Invalid buffer size requested: {Size}", requiredSize);
+                return new SystemStats();
+            }
+
             Marshal.FreeHGlobal(buffer);
-            bufferSize = requiredSize + (1024 * 1024); // Add 1MB padding
+            bufferSize = requiredSize + BufferPaddingSize; // Add 1MB padding
             buffer = Marshal.AllocHGlobal(bufferSize);
+            
+            if (buffer == IntPtr.Zero)
+            {
+                Log.Error("Failed to allocate buffer of size {Size}", bufferSize);
+                bufferSize = 0;
+                return new SystemStats();
+            }
+
             status = SystemPrimitives.NtQuerySystemInformation(
                 SystemPrimitives.SystemProcessInformationValue,
                 buffer,
@@ -195,6 +233,7 @@ public class ProcessService : IProcessService, IDisposable
 
         if (status != SystemPrimitives.StatusSuccess)
         {
+            Log.Warning("NtQuerySystemInformation failed with status 0x{Status:X8}", status);
             return stats;
         }
 
@@ -291,7 +330,22 @@ public class ProcessService : IProcessService, IDisposable
 
         do
         {
+            // CRITICAL: Validate offset before pointer arithmetic
+            if (offset < 0 || offset >= bufferSize)
+            {
+                Log.Error("Offset out of bounds: offset={Offset}, bufferSize={Size}", offset, bufferSize);
+                break;
+            }
+
             ptr = (SystemPrimitives.SystemProcessInformation*)((byte*)buffer + offset);
+            
+            // CRITICAL: Validate pointer is within buffer
+            if ((byte*)ptr < (byte*)buffer || (byte*)ptr >= (byte*)buffer + bufferSize)
+            {
+                Log.Error("Pointer out of bounds during iteration");
+                break;
+            }
+
             int pid = ptr->UniqueProcessId.ToInt32();
             currentPidsBuffer.Add(pid);
 
@@ -367,11 +421,34 @@ public class ProcessService : IProcessService, IDisposable
                 }
                 else
                 {
-                    // DX: UnicodeString.Length is reported in BYTES by the OS kernel.
+                    // CRITICAL: Validate string encoding
+                    // UnicodeString.Length is reported in BYTES by the OS kernel.
                     // Marshal.PtrToStringUni expects a length in CHARACTERS.
                     // Since UTF-16 uses 2 bytes per character, we divide by 2 to get the correct count.
-                    // Zero-alloc string creation if possible, but we need a string for WPF.
-                    name = Marshal.PtrToStringUni(ptr->ImageName.Buffer, ptr->ImageName.Length / 2) ?? "Unknown";
+                    // VALIDATION: Ensure Length is even (valid UTF-16)
+                    if (ptr->ImageName.Length % 2 != 0)
+                    {
+                        Log.Warning("Invalid UTF-16 string length for PID {Pid}: {Length}", 
+                            pid, ptr->ImageName.Length);
+                        name = "Unknown";
+                    }
+                    else if (ptr->ImageName.Buffer == IntPtr.Zero)
+                    {
+                        Log.Warning("Null ImageName buffer for PID {Pid}", pid);
+                        name = "Unknown";
+                    }
+                    else
+                    {
+                        try
+                        {
+                            name = Marshal.PtrToStringUni(ptr->ImageName.Buffer, ptr->ImageName.Length / 2) ?? "Unknown";
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warning(ex, "Failed to marshal process name for PID {Pid}", pid);
+                            name = "Unknown";
+                        }
+                    }
                 }
 
                 var newInfo = new ProcessInfo
