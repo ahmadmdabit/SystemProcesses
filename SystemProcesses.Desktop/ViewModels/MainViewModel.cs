@@ -43,10 +43,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // THREAD-SAFE: ConcurrentDictionary prevents race conditions between UI and background refresh threads
     private readonly ConcurrentDictionary<int, ProcessItemViewModel> viewModelCache = [];
 
-    // Reusable collections for SyncProcessCollection to ensure Zero-Allocation
-    private readonly HashSet<int> reusablePidSet = [];
-
-    private readonly Stack<ProcessItemViewModel> reusableStack = new();
+    // Reusable buffer for CleanupStaleViewModels
+    private readonly HashSet<int> activePidsBuffer = [];
 
     // Zero-Allocation Cache for strings "0" to "100"
     private static readonly BitmapSource[] cpuIconsCache = new BitmapSource[AppConstants.CpuIconCacheSize];
@@ -181,7 +179,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         this.liteDialogService = liteDialogService;
         this.imageLoaderService = imageLoaderService;
         this.processExitor = new RuntimeUnitExitor(liteDialogService, viewModelCache);
-        
+
         // Initialize telemetry service (disabled by default, can be enabled via config)
         string diagnosticDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -254,24 +252,28 @@ public partial class MainViewModel : ObservableObject, IDisposable
             do
             {
                 isRefreshPending = false;
-                
+
                 // Record refresh cycle start for telemetry
                 telemetryService.RecordRefreshCycleStart();
-                
+
                 var (rootInfos, stats) = await processService.GetProcessTreeAsync();
                 var filteredRoots = ApplyFilters(rootInfos);
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     SyncProcessCollection(Processes, filteredRoots);
+                    if (string.IsNullOrWhiteSpace(SearchText) && !IsTreeIsolated)
+                    {
+                        CleanupStaleViewModels(rootInfos);
+                    }
                     UpdateStatistics(stats);
                     UpdateTrayState(stats);
                     StatsUpdated?.Invoke(this, EventArgs.Empty);
                 });
-                
+
                 // Record refresh cycle end for telemetry
                 telemetryService.RecordRefreshCycleEnd();
-                
+
                 // Update memory metrics periodically (every 10 cycles)
                 if (telemetryService.GetMetricsSnapshot().RefreshCycleCount % 10 == 0)
                 {
@@ -424,123 +426,132 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <param name="sourceInfos">The source process data.</param>
     /// <param name="depth">The tree depth (for hierarchy tracking).</param>
     /// <remarks>
+    /// <para>
     /// This method implements zero-allocation differential updates:
     /// - Removes processes that no longer exist
     /// - Adds new processes
     /// - Reorders existing processes
     /// - Updates process data in-place
     /// - Preserves UI state (expansion, selection, scroll position)
-    /// 
-    /// Uses reusable HashSet and Stack to avoid allocations.
+    /// </para>
+    /// <para>Uses method-local HashSet per call frame to prevent cross-depth corruption.</para>
     /// </remarks>
     private void SyncProcessCollection(ObservableCollection<ProcessItemViewModel> collection, List<ProcessInfo> sourceInfos, int depth = 0)
     {
-        // Zero-Allocation: Reuse the HashSet
-        reusablePidSet.Clear();
-        foreach (var info in sourceInfos)
+        // Method-local set: each recursive call frame gets its own set, preventing
+        // corruption of parent validation when child recursion clears a shared set.
+        var sourcePidSet = new HashSet<int>(sourceInfos.Count);
+        for (int i = 0; i < sourceInfos.Count; i++)
         {
-            reusablePidSet.Add(info.Pid);
+            sourcePidSet.Add(sourceInfos[i].Pid);
         }
 
+        // 1. Remove items no longer in sourceInfos at this level
         for (int i = collection.Count - 1; i >= 0; i--)
         {
-            if (!reusablePidSet.Contains(collection[i].Pid))
+            if (!sourcePidSet.Contains(collection[i].Pid))
             {
-                RemoveFromCache(collection[i].Pid, true);
                 collection.RemoveAt(i);
             }
         }
 
+        // 2. Insert, reorder, or replace items
         for (int i = 0; i < sourceInfos.Count; i++)
         {
             var info = sourceInfos[i];
             ProcessItemViewModel? vm;
 
-            if (!viewModelCache.TryGetValue(info.Pid, out vm))
+            // Retrieve or instantiate ViewModel, validating CreateTime against PID reuse.
+            // If the PID was recycled by a different process (different CreateTime),
+            // discard the old ViewModel and create a fresh one.
+            if (!viewModelCache.TryGetValue(info.Pid, out vm) || vm.ProcessInfo.CreateTime != info.CreateTime)
             {
                 vm = new ProcessItemViewModel(info);
-                BuildCache(vm);
-                collection.Insert(i, vm);
+                viewModelCache[info.Pid] = vm;
             }
-            else
+
+            if (i < collection.Count)
             {
-                if (!collection.Contains(vm))
+                if (collection[i].Pid == info.Pid)
                 {
-                    collection.Insert(i, vm);
+                    if (collection[i] != vm)
+                    {
+                        collection[i] = vm;
+                    }
                 }
                 else
                 {
-                    int oldIndex = collection.IndexOf(vm);
-                    if (oldIndex != i)
+                    int existingIdx = -1;
+                    for (int k = i + 1; k < collection.Count; k++)
                     {
-                        collection.Move(oldIndex, i);
+                        if (collection[k].Pid == info.Pid)
+                        {
+                            existingIdx = k;
+                            break;
+                        }
+                    }
+
+                    if (existingIdx != -1)
+                    {
+                        collection.Move(existingIdx, i);
+                        if (collection[i] != vm)
+                        {
+                            collection[i] = vm;
+                        }
+                    }
+                    else
+                    {
+                        collection.Insert(i, vm);
                     }
                 }
+            }
+            else
+            {
+                collection.Insert(i, vm);
             }
 
             vm.Depth = depth;
             vm.Refresh();
             SyncProcessCollection(vm.Children, info.Children, depth + 1);
         }
-    }
 
-    /// <summary>
-    /// Builds the ViewModel cache for a process and all its descendants.
-    /// </summary>
-    /// <param name="root">The root process ViewModel.</param>
-    /// <remarks>
-    /// Uses iterative stack-based traversal to avoid recursion allocations.
-    /// </remarks>
-    public void BuildCache(ProcessItemViewModel root)
-    {
-        // Iterative stack-based traversal avoids recursion allocations
-        reusableStack.Clear();
-        reusableStack.Push(root);
-
-        while (reusableStack.Count > 0)
+        // 3. Trim any trailing excess items (collection longer than source)
+        while (collection.Count > sourceInfos.Count)
         {
-            var node = reusableStack.Pop();
-            viewModelCache[node.Pid] = node;
-
-            // Push children without LINQ/foreach to avoid allocations
-            var children = node.Children;
-            for (int i = 0; i < children.Count; i++)
-            {
-                reusableStack.Push(children[i]);
-            }
+            collection.RemoveAt(collection.Count - 1);
         }
     }
 
     /// <summary>
-    /// Removes a process from the ViewModel cache.
+    /// Removes ViewModels from the cache that are no longer present in the process tree.
+    /// Called after a full synchronization to clean up stale entries from exited processes.
+    /// Only runs when search/isolation is inactive to avoid evicting ViewModels that are
+    /// temporarily hidden by filtering.
     /// </summary>
-    /// <param name="id">The process ID to remove.</param>
-    /// <param name="includeChildren">Whether to remove child processes as well.</param>
-    /// <returns>True if the process was found and removed, false otherwise.</returns>
-    public bool RemoveFromCache(int id, bool includeChildren)
+    private void CleanupStaleViewModels(List<ProcessInfo> roots)
     {
-        if (!viewModelCache.TryGetValue(id, out var node))
-            return false;
+        activePidsBuffer.Clear();
+        CollectAllPids(roots, activePidsBuffer);
 
-        // Remove recursively from dictionary
-        reusableStack.Clear();
-        reusableStack.Push(node);
-
-        while (reusableStack.Count > 0)
+        foreach (var kvp in viewModelCache)
         {
-            var current = reusableStack.Pop();
-            viewModelCache.TryRemove(current.Pid, out _);
-
-            if (includeChildren)
+            if (!activePidsBuffer.Contains(kvp.Key))
             {
-                var children = current.Children;
-                for (int i = 0; i < children.Count; i++)
-                {
-                    reusableStack.Push(children[i]);
-                }
+                viewModelCache.TryRemove(kvp.Key, out _);
             }
         }
-        return true;
+    }
+
+    private static void CollectAllPids(IEnumerable<ProcessInfo> nodes, HashSet<int> pids)
+    {
+        foreach (var node in nodes)
+        {
+            pids.Add(node.Pid);
+            if (node.Children.Count > 0)
+            {
+                CollectAllPids(node.Children, pids);
+            }
+        }
     }
 
     /// <summary>
@@ -778,11 +789,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// Shows detailed information about the selected process.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Displays process name, PID, CPU usage, memory, virtual memory, service status,
     /// start time, processor time, thread count, handle count, and command line.
-    /// 
+    /// </para>
+    /// <para>
     /// Extended details (start time, threads, handles, file path) are retrieved from
     /// the live process and may fail with access denied or process exited errors.
+    /// </para>
     /// </remarks>
     [RelayCommand(CanExecute = nameof(CanExecuteProcessAction))]
     private async Task ShowProcessDetails()
@@ -831,12 +845,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// Opens the directory containing the selected process executable.
     /// </summary>
     /// <remarks>
-    /// Retrieves the process executable path and opens its directory in Windows Explorer.
-    /// 
+    /// <para>Retrieves the process executable path and opens its directory in Windows Explorer.</para>
+    /// <para>
     /// Error handling:
     /// - Access denied: Logged as warning, error shown to user
     /// - Process exited: Logged as warning, error shown to user
     /// - Directory not found: Error shown to user
+    /// </para>
     /// </remarks>
     [RelayCommand(CanExecute = nameof(CanExecuteProcessAction))]
     private async Task OpenProcessDirectory()

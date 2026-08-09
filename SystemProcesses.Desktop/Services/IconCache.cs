@@ -9,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 using Serilog;
+
 using SystemProcesses.Desktop.Helpers;
 
 namespace SystemProcesses.Desktop.Services;

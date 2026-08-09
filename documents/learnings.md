@@ -221,9 +221,14 @@ public bool HasSearchText => !string.IsNullOrEmpty(searchText);
 - User-reported UX improvement: "No longer feels janky"
 
 **Edge Cases Handled**:
-1. PID reuse (process dies, new process gets same PID): Use composite key (PID + CreateTime)
+1. PID reuse (process dies, new process gets same PID): Use composite key (PID + CreateTime) — validated at both ProcessService layer (kernel snapshot) and MainViewModel layer (ViewModel cache lookup)
 2. Parent change (process reparented): Correctly moves ViewModel in tree
 3. Concurrent modifications: Uses SemaphoreSlim to prevent race conditions
+4. Recursive HashSet pollution: Class-level reusablePidSet cleared by child SyncProcessCollection frames corrupted parent validation → replaced with method-local per-frame HashSet
+5. Premature cache eviction: RemoveFromCache called mid-sync evicted ViewModels still present elsewhere in tree → deferred to CleanupStaleViewModels post-sync pass
+6. Cyclic ParentPid chains: IsAncestor() walk detects cycles and self-parenting, reclassifies as root node
+
+**August 2026 Fix** (refer to Pattern 4.2 for cycle detection and Pattern 4.1 for CreateTime validation):
 
 ---
 
@@ -585,9 +590,46 @@ private readonly Dictionary<ProcessIdentity, ProcessInfo> processCache;
 
 **Real-World Case**: Chrome process exits and immediately restarts with same PID. Without CreateTime check, we'd incorrectly update the old ProcessInfo instead of creating new one.
 
+**Implementation (August 2026 Fix)**: CreateTime validation was added in two layers:
+1. `ProcessService.UpdateProcessSnapshot()` — the `activeProcesses.TryGetValue(pid)` check now also validates `info.CreateTime == ptr->CreateTime`, ensuring the kernel-level ProcessInfo is replaced when a PID is recycled.
+2. `MainViewModel.SyncProcessCollection()` — the `viewModelCache.TryGetValue(info.Pid)` lookup now also checks `vm.ProcessInfo.CreateTime != info.CreateTime`, forcing a fresh `ProcessItemViewModel` on the UI layer.
+
+**PID Recycling Edge Case**: When a PID is reused (e.g., `notepad.exe` exits, `cmd.exe` gets same PID), the stale ViewModel would retain the old process name, icon, and path while only updating CPU/RAM. The composite (PID, CreateTime) check forces full replacement at both layers.
+
 ---
 
-### Pattern 4.2: Producer-Consumer with SemaphoreSlim
+### Pattern 4.2: Cycle & Self-Parenting Detection in Tree Reconstruction
+
+**Challenge**: During `RebuildTreeStructure()`, a corrupted `ParentPid` field (self-parenting or cyclic chain) causes infinite recursion or silently dropped nodes in the process tree. Windows can produce these conditions during rapid process creation/teardown when the `SystemProcessInformation` snapshot is read mid-transition.
+
+**Solution**: Add `IsAncestor()` guard before adding a process to its suspected parent's `Children` collection. Walk the parent's ancestor chain; if the candidate process is found, the link forms a cycle — reclassify the candidate as a root node instead:
+
+```csharp
+private bool IsAncestor(ProcessInfo candidate, ProcessInfo potentialAncestor)
+{
+    var current = potentialAncestor;
+    while (current != null)
+    {
+        if (current.Pid == candidate.Pid) return true;
+        if (current.ParentPid == 0 || current.ParentPid == current.Pid) break;
+        if (!activeProcesses.TryGetValue(current.ParentPid, out current)) break;
+    }
+    return false;
+}
+```
+
+Also guard against self-parenting directly: `p.ParentPid != p.Pid`.
+
+**Benefit**:
+- Eliminates `StackOverflowException` from cyclic `ParentPid` chains
+- Prevents nodes being silently dropped from `rootNodes`
+- Safe termination: walk always reaches either a root (`ParentPid == 0`), a self-reference (break), or a resolved ancestor (return true)
+
+**Metrics**: Zero performance impact — `IsAncestor` only called once per process during tree rebuild, not in the refresh hot path.
+
+---
+
+### Pattern 4.3: Producer-Consumer with SemaphoreSlim
 
 **Pattern Implementation**:
 ```csharp
@@ -627,7 +669,7 @@ public async Task RefreshAsync()
 
 ---
 
-### Pattern 4.3: Reusable Buffer Pattern
+### Pattern 4.4: Reusable Buffer Pattern
 
 **Pattern**: Pre-allocate collections and clear instead of creating new:
 ```csharp

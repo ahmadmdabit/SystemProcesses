@@ -1,4 +1,3 @@
-using System;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using System.Windows;
@@ -100,7 +99,7 @@ public partial class StatsViewModel : ObservableObject
         CurrentStats = stats;
 
         // Update drives collection (differential update to minimize UI notifications)
-        UpdateDrivesCollection(stats.Drives);
+        UpdateDrivesCollection(stats.Drives, stats.DriveCount);
     }
 
     // PRIVATE METHODS
@@ -109,21 +108,21 @@ public partial class StatsViewModel : ObservableObject
     /// Updates Drives observable collection with differential sync.
     /// Reuses existing ViewModels where possible to avoid allocations.
     /// </summary>
-    private void UpdateDrivesCollection(DriveStats[]? newDrives)
+    private void UpdateDrivesCollection(DriveStats[]? newDrives, int driveCount)
     {
-        if (newDrives == null || newDrives.Length == 0)
+        if (newDrives == null || driveCount <= 0)
         {
             Drives.Clear();
             return;
         }
 
-        // Remove drives no longer present
+        // Remove drives no longer present in active drive range [0..driveCount-1]
         for (int i = Drives.Count - 1; i >= 0; i--)
         {
             bool found = false;
-            for (int j = 0; j < newDrives.Length; j++)
+            for (int j = 0; j < driveCount; j++)
             {
-                if (Drives[i].DriveLetter == newDrives[j].Letter)
+                if (Drives[i].DriveLetter == newDrives[j].Letter && newDrives[j].Letter != '\0')
                 {
                     found = true;
                     break;
@@ -136,8 +135,8 @@ public partial class StatsViewModel : ObservableObject
             }
         }
 
-        // Update existing or add new drives
-        for (int i = 0; i < newDrives.Length; i++)
+        // Update existing or add new drives from active drive range [0..driveCount-1]
+        for (int i = 0; i < driveCount; i++)
         {
             var newDrive = newDrives[i];
 
@@ -219,6 +218,13 @@ public partial class StatsViewModel : ObservableObject
 /// ViewModel wrapper for DriveStats to enable property change notifications.
 /// Lightweight wrapper that updates in-place to avoid allocations.
 /// </summary>
+/// <remarks>
+/// Access Pattern: This class does NOT implement IEquatable or override Equals/GetHashCode.
+/// The parent ObservableCollection&lt;DriveStatsViewModel&gt; must be accessed via index-based
+/// lookups only (Drives[i]). Do NOT use Drives.Contains(viewModel) or Drives.IndexOf(viewModel)
+/// — those rely on reference equality and will fail to find matching entries.
+/// Matching is performed by character comparison on DriveLetter in UpdateDrivesCollection.
+/// </remarks>
 public partial class DriveStatsViewModel : ObservableObject
 {
     [ObservableProperty]

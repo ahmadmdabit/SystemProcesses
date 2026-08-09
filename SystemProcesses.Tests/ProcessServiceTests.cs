@@ -1,8 +1,5 @@
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Threading.Tasks;
-using NUnit.Framework;
 
 using SystemProcesses.Desktop.Models;
 using SystemProcesses.Desktop.Services;
@@ -63,7 +60,7 @@ public class ProcessServiceTests
     {
         // Arrange
         var snapshot = await service.GetProcessTreeAsync();
-        
+
         // Verify we have at least one process
         Assert.That(snapshot.Roots.Count, Is.GreaterThan(0), "At least one process should be in tree");
 
@@ -155,7 +152,7 @@ public class ProcessServiceTests
         {
             var process1 = stats.Top5Processes[i];
             var process2 = stats.Top5Processes[i + 1];
-            
+
             if (process1 != null && process2 != null)
             {
                 Assert.That(
@@ -214,7 +211,7 @@ public class ProcessServiceTests
     {
         // Arrange
         var svc = new ProcessService();
-        
+
         // Act - Call finalizer indirectly by letting GC collect
         svc = null;
         GC.Collect();
@@ -360,7 +357,7 @@ public class ProcessServiceTests
         foreach (var root in snapshot.Roots)
         {
             Assert.That(root.Parameters, Is.Not.Null, "Parameters should not be null (may be empty string)");
-            
+
             // Recursively check children
             VerifyProcessParameters(root);
         }
@@ -390,7 +387,7 @@ public class ProcessServiceTests
             // ProcessPath may be null for protected processes, which is acceptable
             // Just verify the field exists and doesn't throw
             var path = root.ProcessPath;
-            
+
             // Recursively check children
             VerifyProcessPath(root);
         }
@@ -441,7 +438,7 @@ public class ProcessServiceTests
         {
             Assert.That(root.CpuPercentage, Is.GreaterThanOrEqualTo(0), $"Process {root.Name} CPU should be non-negative");
             // CPU can exceed 100% on multi-core systems, so no upper bound check
-            
+
             VerifyCpuPercentages(root);
         }
     }
@@ -470,7 +467,7 @@ public class ProcessServiceTests
         {
             Assert.That(root.MemoryBytes, Is.GreaterThanOrEqualTo(0), $"Process {root.Name} memory should be non-negative");
             Assert.That(root.VirtualMemoryBytes, Is.GreaterThanOrEqualTo(0), $"Process {root.Name} virtual memory should be non-negative");
-            
+
             VerifyMemoryValues(root);
         }
     }

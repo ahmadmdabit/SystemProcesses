@@ -61,8 +61,11 @@
         SnapsToDevicePixels="True">
         <StackPanel Orientation="Horizontal">
             <!--  CPU  -->
-            <Border Style="{StaticResource IconBorder}">
-                <StackPanel Orientation="Vertical">
+            <Border
+                Background="{StaticResource IconBorder.Background}"
+                BorderBrush="#00EE00"
+                Style="{StaticResource IconBorder}">
+                <StackPanel Orientation="Vertical" Style="{StaticResource IconStack}">
                     <TextBlock Style="{StaticResource GreenTextBlock2}" Text="{StaticResource StatsViewCPU}" />
                     <TextBlock Style="{StaticResource GreenTextBlock}" Text="{Binding TotalCpuUsage, Converter={StaticResource CpuPercentageConverter}, FallbackValue=0%}" />
                 </StackPanel>
@@ -70,7 +73,7 @@
 
             <!--  RAM  -->
             <Border Style="{StaticResource IconBorder}">
-                <StackPanel Orientation="Vertical">
+                <StackPanel Orientation="Vertical" Style="{StaticResource IconStack}">
                     <TextBlock Style="{StaticResource GreenTextBlock2}" Text="{StaticResource StatsViewRAM}" />
                     <TextBlock Style="{StaticResource GreenTextBlock}" Text="{Binding RamPercent, Converter={StaticResource CpuPercentageConverter}, FallbackValue=0%}" />
                 </StackPanel>
@@ -78,7 +81,7 @@
 
             <!--  Virtual Memory  -->
             <Border Style="{StaticResource IconBorder}">
-                <StackPanel Orientation="Vertical">
+                <StackPanel Orientation="Vertical" Style="{StaticResource IconStack}">
                     <TextBlock Style="{StaticResource GreenTextBlock2}" Text="{StaticResource StatsViewVM}" />
                     <TextBlock Style="{StaticResource GreenTextBlock}" Text="{Binding VMPercent, Converter={StaticResource CpuPercentageConverter}, FallbackValue=0%}" />
                 </StackPanel>
@@ -86,7 +89,7 @@
 
             <!--  Disk Activity  -->
             <Border Style="{StaticResource IconBorder}">
-                <StackPanel Orientation="Vertical">
+                <StackPanel Orientation="Vertical" Style="{StaticResource IconStack}">
                     <TextBlock Style="{StaticResource GreenTextBlock2}" Text="{StaticResource StatsViewDisk}" />
                     <TextBlock Style="{StaticResource GreenTextBlock}" Text="{Binding DiskActivePercent, Converter={StaticResource CpuPercentageConverter}, FallbackValue=0%}" />
                 </StackPanel>
@@ -101,7 +104,10 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Style="{StaticResource IconBorder}">
+                        <Border
+                            Background="{StaticResource IconBorder.Background}"
+                            BorderBrush="#00EE00"
+                            Style="{StaticResource IconBorder}">
                             <StackPanel Orientation="Vertical">
                                 <TextBlock Style="{StaticResource GreenTextBlock2}" Text="{Binding DriveLabel}" />
                                 <TextBlock Style="{StaticResource GreenTextBlock}" Text="{Binding FreeBytes, Converter={StaticResource BytesToAutoFormatConverter}}" />

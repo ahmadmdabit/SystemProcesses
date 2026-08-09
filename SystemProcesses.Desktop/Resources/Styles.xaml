@@ -18,6 +18,11 @@
         <GradientStop Offset="1.0" Color="#FFE5E5E5" />
     </LinearGradientBrush>
 
+    <RadialGradientBrush x:Key="IconBorder.Background" Center="0.5,0.5" GradientOrigin="0.5,0.5" RadiusX="0.5" RadiusY="0.5">
+        <GradientStop Offset="0.0" Color="#33333333" />
+        <GradientStop Offset="1.0" Color="#66006600" />
+    </RadialGradientBrush>
+
     <!--  TreeView Style  -->
     <Style x:Key="TreeViewItemStyle" TargetType="TreeViewItem">
         <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />

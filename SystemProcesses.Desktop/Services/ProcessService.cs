@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
@@ -208,7 +207,7 @@ public class ProcessService : IProcessService, IDisposable
             Marshal.FreeHGlobal(buffer);
             bufferSize = requiredSize + AppConstants.BufferPaddingSize; // Add 1MB padding
             buffer = Marshal.AllocHGlobal(bufferSize);
-            
+
             if (buffer == IntPtr.Zero)
             {
                 Log.Error("Failed to allocate buffer of size {Size}", bufferSize);
@@ -312,6 +311,14 @@ public class ProcessService : IProcessService, IDisposable
         stats.DriveCount = driveCount;
         stats.Drives = driveBuffer;
 
+        // Clear trailing slots so stale drive data is never referenced when driveCount shrinks
+        // (e.g., a drive is unmounted). This prevents old DriveStats entries from persisting
+        // in the buffer for the next cycle.
+        if (driveCount < AppConstants.MaxDriveLetters)
+        {
+            Array.Clear(driveBuffer, driveCount, AppConstants.MaxDriveLetters - driveCount);
+        }
+
         long currentTicks = DateTime.UtcNow.Ticks;
         double deltaTime = (currentTicks - prevTicks);
         double deltaTimeSec = deltaTime / (double)AppConstants.TicksPerSecond; // Ticks are 100ns
@@ -333,7 +340,7 @@ public class ProcessService : IProcessService, IDisposable
             }
 
             ptr = (SystemPrimitives.SystemProcessInformation*)((byte*)buffer + offset);
-            
+
             // CRITICAL: Validate pointer is within buffer
             if ((byte*)ptr < (byte*)buffer || (byte*)ptr >= (byte*)buffer + bufferSize)
             {
@@ -396,9 +403,10 @@ public class ProcessService : IProcessService, IDisposable
             // Update/Add ProcessInfo (Include PID 0 here so it shows in the Tree)
             bool isService = servicePids.Contains(pid);
 
-            if (activeProcesses.TryGetValue(pid, out var info))
+            if (activeProcesses.TryGetValue(pid, out var info) && info.CreateTime == ptr->CreateTime)
             {
-                // UPDATE existing (Zero Alloc)
+                // UPDATE existing (Zero Alloc) — CreateTime match confirms this is the same process instance,
+                // not a recycled PID being reused by a different process.
                 info.Update(cpuUsage, memBytes, virtualBytes, threads, handles);
                 info.ParentPid = parentPid;
                 info.IsService = isService; // Update service status (rarely changes, but possible)
@@ -423,7 +431,7 @@ public class ProcessService : IProcessService, IDisposable
                     // VALIDATION: Ensure Length is even (valid UTF-16)
                     if (ptr->ImageName.Length % AppConstants.Utf16BytesPerChar != 0)
                     {
-                        Log.Warning("Invalid UTF-16 string length for PID {Pid}: {Length}", 
+                        Log.Warning("Invalid UTF-16 string length for PID {Pid}: {Length}",
                             pid, ptr->ImageName.Length);
                         name = "Unknown";
                     }
@@ -450,7 +458,7 @@ public class ProcessService : IProcessService, IDisposable
                 string commandLine = commandLineResult.GetValueOrDefault(string.Empty);
 
                 var processPathResult = GetProcessPath(pid);
-                string? processPath = processPathResult.GetValueOrDefault(null);
+                string? processPath = processPathResult.GetValueOrDefault(null!);
 
                 var newInfo = new ProcessInfo
                 {
@@ -554,9 +562,14 @@ public class ProcessService : IProcessService, IDisposable
 
         foreach (var p in activeProcesses.Values)
         {
-            if (p.ParentPid != 0 && activeProcesses.TryGetValue(p.ParentPid, out var parent))
+            // Guard against self-parenting (ParentPid == Pid) and cyclic references.
+            // If p's parent is itself or is an ancestor of p, treat p as a root node.
+            if (p.ParentPid != 0 && p.ParentPid != p.Pid && activeProcesses.TryGetValue(p.ParentPid, out var parent))
             {
-                parent.Children.Add(p);
+                if (!IsAncestor(p, parent))
+                    parent.Children.Add(p);
+                else
+                    rootNodes.Add(p);
             }
             else
             {
@@ -566,6 +579,23 @@ public class ProcessService : IProcessService, IDisposable
 
         // Sort the tree
         SortTree(rootNodes);
+    }
+
+    /// <summary>
+    /// Detects if <paramref name="potentialAncestor"/> is an ancestor of <paramref name="candidate"/>
+    /// by walking the parent chain. This prevents cyclic process hierarchies (A->B->A) from causing
+    /// infinite recursion during tree sort/sync.
+    /// </summary>
+    private bool IsAncestor(ProcessInfo candidate, ProcessInfo potentialAncestor)
+    {
+        var current = potentialAncestor;
+        while (current != null)
+        {
+            if (current.Pid == candidate.Pid) return true;
+            if (current.ParentPid == 0 || current.ParentPid == current.Pid) break;
+            if (!activeProcesses.TryGetValue(current.ParentPid, out current)) break;
+        }
+        return false;
     }
 
     private void SortTree(List<ProcessInfo> nodes)
@@ -680,7 +710,7 @@ public class ProcessService : IProcessService, IDisposable
         {
             using var p = Process.GetProcessById(pid);
             string? path = p.MainModule?.FileName;
-            
+
             if (string.IsNullOrEmpty(path))
             {
                 return new Result<string>.Failure(

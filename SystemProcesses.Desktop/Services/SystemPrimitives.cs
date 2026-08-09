@@ -482,7 +482,7 @@ internal static partial class SystemPrimitives
     public const int WmDwmComPositionChanged = 0x031E;
 
     /// <summary>Window message: Sent to a window after non-client area is activated.</summary>
-    public const int WmNcActivate  = 0x0086;
+    public const int WmNcActivate = 0x0086;
 
     /// <summary>
     /// Contains information about the size and position of a window.

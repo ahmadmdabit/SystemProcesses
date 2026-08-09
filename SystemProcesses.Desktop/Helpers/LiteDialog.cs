@@ -156,8 +156,8 @@ internal sealed class LiteDialogWindow : Window
 
         // Message Text (read-only TextBox styled as TextBlock for selectability)
         txtMessage = new TextBox
-        { 
-            TextWrapping = TextWrapping.Wrap, 
+        {
+            TextWrapping = TextWrapping.Wrap,
             VerticalAlignment = VerticalAlignment.Center,
             IsReadOnly = true,
             BorderThickness = new Thickness(0),
@@ -255,8 +255,8 @@ internal sealed class LiteDialogWindow : Window
         {
             // Center on owner window
             // Use RestoreBounds for maximized windows (Left/Top are negative when maximized)
-            var ownerBounds = this.Owner.WindowState == WindowState.Maximized 
-                ? this.Owner.RestoreBounds 
+            var ownerBounds = this.Owner.WindowState == WindowState.Maximized
+                ? this.Owner.RestoreBounds
                 : new Rect(this.Owner.Left, this.Owner.Top, this.Owner.ActualWidth, this.Owner.ActualHeight);
 
             this.Left = ownerBounds.Left + (ownerBounds.Width - this.ActualWidth) / 2;
@@ -289,7 +289,7 @@ internal sealed class LiteDialogWindow : Window
 
         // Get monitor handle for the point where owner window is located
         IntPtr hMonitor = SystemPrimitives.MonitorFromPoint(
-            ownerCenter, 
+            ownerCenter,
             SystemPrimitives.MonitorDefaultToNearest);
 
         if (hMonitor != IntPtr.Zero)

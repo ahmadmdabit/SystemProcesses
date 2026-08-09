@@ -54,13 +54,16 @@ public class RuntimeUnitExitor
     /// <param name="pid">The process ID to exit.</param>
     /// <param name="name">The process name for display.</param>
     /// <remarks>
+    /// <para>
     /// Sends CloseMainWindow signal and waits up to 3 seconds for graceful exit.
     /// If the process doesn't respond, prompts the user to force stop it.
-    /// 
+    /// </para>
+    /// <para>
     /// Error handling:
     /// - Access denied: Logged as warning, user prompted to force stop
     /// - Process exited: Logged as warning, operation continues
     /// - No window: Logged as warning, user prompted to force stop
+    /// </para>
     /// </remarks>
     public async Task GracefullyExitAsync(int pid, string name)
     {
@@ -135,16 +138,18 @@ public class RuntimeUnitExitor
     /// <param name="rootPid">The root process ID to exit.</param>
     /// <param name="rootName">The root process name for display.</param>
     /// <remarks>
+    /// <para>
     /// Attempts to close the entire process tree gracefully. Waits up to 3 seconds per attempt
     /// for processes to exit. If any processes remain after 3 attempts, prompts the user to
     /// force stop the entire tree.
-    /// 
-    /// Uses bottom-up exition (children first) to avoid orphaned processes.
-    /// 
+    /// </para>
+    /// <para>Uses bottom-up exition (children first) to avoid orphaned processes.</para>
+    /// <para>
     /// Error handling:
     /// - Access denied: Logged as warning, continues with other processes
     /// - Process exited: Logged as warning, continues
     /// - Incomplete shutdown: User prompted to force stop
+    /// </para>
     /// </remarks>
     public async Task GracefullyExitTreeAsync(int rootPid, string rootName)
     {
@@ -297,12 +302,15 @@ public class RuntimeUnitExitor
     /// </summary>
     /// <param name="pid">The process ID to exit.</param>
     /// <remarks>
+    /// <para>
     /// Sends a SIGKILL signal to the process, exiting it immediately without
     /// allowing cleanup. Use GracefullyExitAsync for graceful shutdown.
-    /// 
+    /// </para>
+    /// <para>
     /// Error handling:
     /// - Access denied: Logged as warning, error shown to user
     /// - Process exited: Logged as warning, error shown to user
+    /// </para>
     /// </remarks>
     public async Task ForceExitAsync(int pid, string name)
     {
@@ -342,12 +350,15 @@ public class RuntimeUnitExitor
     /// </summary>
     /// <param name="rootPid">The root process ID to exit.</param>
     /// <remarks>
+    /// <para>
     /// Recursively exits the entire process tree. Children are exitd first
     /// (bottom-up approach) to avoid orphaned processes.
-    /// 
+    /// </para>
+    /// <para>
     /// Error handling:
     /// - Access denied: Logged as warning, continues with other processes
     /// - Process exited: Logged as warning, continues
+    /// </para>
     /// </remarks>
     public async Task ForceExitTreeAsync(int rootPid, string rootName)
     {

@@ -6,17 +6,20 @@
 
     <!--  Styles for StatsView  -->
     <Style x:Key="GreenTextBlock" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="#00EE00" />
         <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="FontFamily" Value="Consolas" />
         <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Foreground" Value="#00EE00" />
     </Style>
     <Style
         x:Key="GreenTextBlock2"
         BasedOn="{StaticResource GreenTextBlock}"
         TargetType="TextBlock">
-        <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="Foreground" Value="#00EE00" />
     </Style>
 
     <Style x:Key="IconBorder" TargetType="Border">
@@ -24,9 +27,14 @@
         <Setter Property="BorderBrush" Value="#444444" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="5" />
+        <Setter Property="MinWidth" Value="50" />
         <Setter Property="Padding" Value="5,3" />
         <Setter Property="Margin" Value="0,0,3,0" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <Style x:Key="IconStack" TargetType="StackPanel">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
     </Style>
 
     <!--  Application Title and Tray  -->

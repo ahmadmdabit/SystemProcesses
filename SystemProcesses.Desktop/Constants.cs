@@ -1,5 +1,3 @@
-using System;
-
 namespace SystemProcesses.Desktop;
 
 /// <summary>

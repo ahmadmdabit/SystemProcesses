@@ -46,7 +46,7 @@ public sealed class SafeProcessHandle : SafeHandle
     public static SafeProcessHandle Open(int pid, uint access)
     {
         var handle = SystemPrimitives.OpenProcess(access, false, pid);
-        
+
         if (handle == IntPtr.Zero)
         {
             throw new Win32Exception(
@@ -67,7 +67,7 @@ public sealed class SafeProcessHandle : SafeHandle
     public static Result<SafeProcessHandle> TryOpen(int pid, uint access)
     {
         var rawHandle = SystemPrimitives.OpenProcess(access, false, pid);
-        
+
         if (rawHandle == IntPtr.Zero)
         {
             return new Result<SafeProcessHandle>.Failure(
@@ -121,7 +121,7 @@ public sealed class SafeServiceHandle : SafeHandle
     public static SafeServiceHandle OpenScm(string? machineName, uint access)
     {
         var handle = SystemPrimitives.OpenSCManagerW(machineName, null, access);
-        
+
         if (handle == IntPtr.Zero)
         {
             throw new Win32Exception(
@@ -142,7 +142,7 @@ public sealed class SafeServiceHandle : SafeHandle
     public static Result<SafeServiceHandle> TryOpenScm(string? machineName, uint access)
     {
         var rawHandle = SystemPrimitives.OpenSCManagerW(machineName, null, access);
-        
+
         if (rawHandle == IntPtr.Zero)
         {
             return new Result<SafeServiceHandle>.Failure(
@@ -195,7 +195,7 @@ public sealed class SafePdhQueryHandle : SafeHandle
     public static SafePdhQueryHandle Open()
     {
         int status = SystemPrimitives.PdhOpenQuery(IntPtr.Zero, IntPtr.Zero, out IntPtr query);
-        
+
         if (status != 0)
         {
             throw new Win32Exception(
@@ -214,7 +214,7 @@ public sealed class SafePdhQueryHandle : SafeHandle
     public static Result<SafePdhQueryHandle> TryOpen()
     {
         int status = SystemPrimitives.PdhOpenQuery(IntPtr.Zero, IntPtr.Zero, out IntPtr query);
-        
+
         if (status != 0)
         {
             return new Result<SafePdhQueryHandle>.Failure(
@@ -287,7 +287,7 @@ public sealed class SafeHGlobalHandle : SafeHandle
             throw new ArgumentException("Size must be greater than zero", nameof(size));
 
         IntPtr ptr = Marshal.AllocHGlobal(size);
-        
+
         if (ptr == IntPtr.Zero)
             throw new OutOfMemoryException($"Failed to allocate {size} bytes");
 
@@ -313,7 +313,7 @@ public sealed class SafeHGlobalHandle : SafeHandle
         try
         {
             IntPtr ptr = Marshal.AllocHGlobal(size);
-            
+
             if (ptr == IntPtr.Zero)
             {
                 return new Result<SafeHGlobalHandle>.Failure(
@@ -345,7 +345,7 @@ public sealed class SafeHGlobalHandle : SafeHandle
             throw new ObjectDisposedException("SafeHGlobalHandle");
 
         IntPtr newPtr = Marshal.ReAllocHGlobal(handle, new IntPtr(newSize));
-        
+
         if (newPtr == IntPtr.Zero)
             throw new OutOfMemoryException($"Failed to reallocate to {newSize} bytes");
 
