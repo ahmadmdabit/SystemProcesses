@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:hc="https://handyorg.github.io/handycontrol"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:tb="clr-namespace:H.NotifyIcon;assembly=H.NotifyIcon.Wpf"
     xmlns:viewmodels="clr-namespace:SystemProcesses.Desktop.ViewModels"
@@ -10,9 +11,12 @@
     Title="{StaticResource AppTitle}"
     Width="960"
     Height="500"
+    MinWidth="280"
+    MinHeight="280"
     Closing="uiRootClosing"
     Icon="/Resources/Images/TrayIcon/SystemProcess-Tray.ico"
     StateChanged="uiRootStateChanged"
+    Style="{DynamicResource WindowStyle}"
     WindowStartupLocation="CenterScreen"
     mc:Ignorable="d">
 
@@ -63,10 +67,9 @@
                     Width="280"
                     Margin="0,0,0,47"
                     Padding="10"
-                    Background="Black"
-                    BorderBrush="#00EE00"
                     BorderThickness="2"
-                    CornerRadius="10">
+                    CornerRadius="10"
+                    Style="{StaticResource TrayPopupBorderStyle}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -76,10 +79,7 @@
                             Grid.Row="0"
                             Margin="0,0,0,10"
                             Padding="10"
-                            Background="Black"
-                            BorderBrush="#00EE00"
-                            BorderThickness="1"
-                            CornerRadius="10">
+                            Style="{StaticResource TrayPopupBorderStyle}">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -88,19 +88,13 @@
 
                                 <TextBlock
                                     Grid.Row="0"
-                                    Margin="0,0,0,5"
-                                    FontWeight="Bold"
-                                    Foreground="#00EE00"
-                                    Text="{Binding TrayToolTipTextHeader}"
-                                    TextWrapping="Wrap" />
+                                    Style="{StaticResource TrayPopupHeaderStyle}"
+                                    Text="{Binding TrayToolTipTextHeader}" />
 
                                 <TextBlock
                                     Grid.Row="1"
-                                    Margin="0,0,0,5"
-                                    FontWeight="Bold"
-                                    Foreground="#00EE00"
-                                    Text="{Binding StorageStatsTrayText}"
-                                    TextWrapping="Wrap" />
+                                    Style="{StaticResource TrayPopupHeaderStyle}"
+                                    Text="{Binding StorageStatsTrayText}" />
                             </Grid>
                         </Border>
 
@@ -108,10 +102,7 @@
                             Grid.Row="1"
                             Margin="0,0,0,0"
                             Padding="10"
-                            Background="Black"
-                            BorderBrush="#00EE00"
-                            BorderThickness="1"
-                            CornerRadius="10">
+                            Style="{StaticResource TrayPopupBorderStyle}">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -120,16 +111,13 @@
 
                                 <TextBlock
                                     Grid.Row="0"
-                                    Margin="0,0,0,5"
-                                    FontWeight="Bold"
-                                    Foreground="#00EE00"
-                                    Text="{StaticResource TrayPopupTop5Processes}"
-                                    TextWrapping="Wrap" />
+                                    Style="{StaticResource TrayPopupHeaderStyle}"
+                                    Text="{StaticResource TrayPopupTop5Processes}" />
 
                                 <TextBlock
                                     Grid.Row="1"
                                     Margin="0,0,0,0"
-                                    Foreground="#00EE00"
+                                    Foreground="{StaticResource AccentBrush}"
                                     Text="{Binding TrayToolTipTextBody}"
                                     TextWrapping="Wrap" />
                             </Grid>
@@ -200,26 +188,17 @@
                 <StackPanel.ToolTip>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
-                            <TextBlock
-                                Margin="0,0,5,0"
-                                FontWeight="Bold"
-                                Text="{StaticResource LabelProcesses}" />
+                            <TextBlock Style="{StaticResource StatLabelStyle}" Text="{StaticResource LabelProcesses}" />
                             <TextBlock Text="{Binding TotalProcessCount}" />
                         </StackPanel>
 
                         <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
-                            <TextBlock
-                                Margin="0,0,5,0"
-                                FontWeight="Bold"
-                                Text="{StaticResource LabelThreads}" />
+                            <TextBlock Style="{StaticResource StatLabelStyle}" Text="{StaticResource LabelThreads}" />
                             <TextBlock Text="{Binding TotalThreadCount}" />
                         </StackPanel>
 
                         <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
-                            <TextBlock
-                                Margin="0,0,5,0"
-                                FontWeight="Bold"
-                                Text="{StaticResource LabelHandles}" />
+                            <TextBlock Style="{StaticResource StatLabelStyle}" Text="{StaticResource LabelHandles}" />
                             <TextBlock Text="{Binding TotalHandleCount}" />
                         </StackPanel>
                     </StackPanel>
@@ -227,16 +206,16 @@
 
                 <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
                     <TextBlock
-                        Margin="0,0,5,0"
-                        FontWeight="Bold"
+                        Foreground="{StaticResource SecondaryBrush}"
+                        Style="{StaticResource StatLabelStyle}"
                         Text="{StaticResource LabelCPU}" />
                     <TextBlock Text="{Binding TotalCpuUsage, Converter={StaticResource CpuPercentageConverter}}" TextAlignment="Right" />
                 </StackPanel>
 
                 <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
                     <TextBlock
-                        Margin="0,0,5,0"
-                        FontWeight="Bold"
+                        Foreground="{StaticResource SecondaryBrush}"
+                        Style="{StaticResource StatLabelStyle}"
                         Text="{StaticResource LabelRAM}"
                         ToolTip="{StaticResource TooltipRAM}" />
                     <TextBlock Text="{Binding AvailablePhysicalMemory, Converter={StaticResource BytesToAutoFormatConverter}}" />
@@ -245,8 +224,8 @@
 
                 <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
                     <TextBlock
-                        Margin="0,0,5,0"
-                        FontWeight="Bold"
+                        Foreground="{StaticResource SecondaryBrush}"
+                        Style="{StaticResource StatLabelStyle}"
                         Text="{StaticResource LabelVM}"
                         ToolTip="{StaticResource TooltipVM}" />
                     <TextBlock Text="{Binding AvailableCommitLimit, Converter={StaticResource BytesToAutoFormatConverter}}" />
@@ -255,197 +234,227 @@
 
                 <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
                     <TextBlock
-                        Margin="0,0,5,0"
-                        FontWeight="Bold"
+                        Foreground="{StaticResource SecondaryBrush}"
+                        Style="{StaticResource StatLabelStyle}"
                         Text="{StaticResource LabelDisk}" />
                     <TextBlock Text="{Binding DiskActivePercent, StringFormat='{}{0:F0}%'}" TextAlignment="Right" />
                 </StackPanel>
 
                 <StackPanel Margin="0,0,10,0" Orientation="Horizontal">
                     <TextBlock
-                        Margin="0,0,5,0"
-                        FontWeight="Bold"
+                        Foreground="{StaticResource SecondaryBrush}"
+                        Style="{StaticResource StatLabelStyle}"
                         Text="{StaticResource LabelStorage}" />
                     <TextBlock Text="{Binding StorageStatsText}" TextAlignment="Right" />
                 </StackPanel>
             </StackPanel>
 
-            <Border
+            <TextBox
                 Grid.Column="2"
                 Margin="0,0,5,0"
-                VerticalAlignment="Stretch"
-                Background="White"
-                BorderBrush="#CCC"
-                BorderThickness="1"
-                CornerRadius="6">
-                <TextBox
-                    Margin="0"
-                    Padding="2"
-                    VerticalAlignment="Center"
-                    Background="Transparent"
-                    BorderThickness="0"
-                    Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                    ToolTip="{StaticResource TooltipSearchBox}" />
-            </Border>
+                Template="{StaticResource RoundedTextBoxTemplate}"
+                Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                ToolTip="{StaticResource TooltipSearchBox}" />
 
-            <Border
+            <Grid
                 Grid.Column="3"
                 VerticalAlignment="Center"
-                Background="{StaticResource ComboBox.Static.Background}"
-                BorderBrush="#CCC"
-                BorderThickness="1"
-                ClipToBounds="True"
-                CornerRadius="6">
-                <ComboBox
-                    Margin="2"
+                ClipToBounds="True">
+                <Button
+                    x:Name="RefreshRateButton"
+                    MinWidth="30"
+                    MinHeight="30"
                     Padding="2"
                     VerticalAlignment="Center"
-                    Background="Transparent"
-                    BorderBrush="Transparent"
-                    BorderThickness="0"
-                    ItemsSource="{Binding RefreshIntervals}"
-                    SelectedItem="{Binding SelectedRefreshInterval}"
-                    SnapsToDevicePixels="True"
+                    Command="{Binding ToggleRefreshPopupCommand}"
+                    Content="{Binding SelectedRefreshInterval, StringFormat='{}{0}s'}"
                     ToolTip="{StaticResource TooltipRefreshRate}" />
-            </Border>
+                <Popup
+                    x:Name="RefreshRatePopup"
+                    AllowsTransparency="True"
+                    IsOpen="{Binding IsRefreshPopupOpen}"
+                    Placement="Bottom"
+                    PlacementTarget="{Binding ElementName=RefreshRateButton}"
+                    PopupAnimation="Fade"
+                    StaysOpen="False"
+                    VerticalOffset="-4">
+                    <Border
+                        Background="{StaticResource WidgetBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                        <ListBox
+                            Width="80"
+                            Margin="5"
+                            ItemContainerStyle="{StaticResource ListBoxItemStyle}"
+                            ItemsSource="{Binding RefreshIntervals}"
+                            SelectedItem="{Binding SelectedRefreshInterval}"
+                            ToolTip="{StaticResource TooltipRefreshRate}" />
+                    </Border>
+                </Popup>
+            </Grid>
 
 
         </Grid>
 
         <!--  Process Tree  -->
-        <TreeView
-            x:Name="uiProcessTreeView"
-            Grid.Row="2"
-            Margin="10,0,10,5"
-            BorderBrush="Transparent"
-            BorderThickness="1"
-            Grid.IsSharedSizeScope="True"
-            ItemsSource="{Binding Processes}"
-            SelectedItemChanged="TreeViewSelectedItemChanged"
-            SizeChanged="uiProcessTreeViewSizeChanged"
-            VirtualizingStackPanel.IsVirtualizing="True"
-            VirtualizingStackPanel.VirtualizationMode="Recycling">
 
-            <TreeView.ItemContainerStyle>
-                <Style BasedOn="{StaticResource TreeViewItemStyle}" TargetType="TreeViewItem">
-                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                    <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Border Grid.Row="2">
 
-                    <!--  Bridge DataContext to Tag for ContextMenu access  -->
-                    <Setter Property="Tag" Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" />
+            <TreeView
+                x:Name="uiProcessTreeView"
+                Margin="10,0,10,5"
+                BorderBrush="Transparent"
+                BorderThickness="1"
+                Grid.IsSharedSizeScope="True"
+                ItemsSource="{Binding Processes}"
+                ScrollViewer.VerticalScrollBarVisibility="Auto"
+                SelectedItemChanged="TreeViewSelectedItemChanged"
+                SizeChanged="uiProcessTreeViewSizeChanged"
+                VirtualizingStackPanel.IsVirtualizing="True"
+                VirtualizingStackPanel.VirtualizationMode="Recycling">
 
-                    <Setter Property="ContextMenu">
-                        <Setter.Value>
-                            <ContextMenu>
-                                <MenuItem Command="{Binding PlacementTarget.Tag.GracefulEndProcessCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="{StaticResource ContextMenuGracefulEnd}" />
-                                <MenuItem Command="{Binding PlacementTarget.Tag.GracefulEndProcessTreeCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="{StaticResource ContextMenuGracefulEndTree}" />
-                                <MenuItem Command="{Binding PlacementTarget.Tag.EndProcessCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="{StaticResource ContextMenuEnd}" />
-                                <MenuItem
-                                    Margin="0,0,0,5"
-                                    Command="{Binding PlacementTarget.Tag.EndProcessTreeCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                                    Header="{StaticResource ContextMenuEndTree}" />
-                                <MenuItem
-                                    Margin="0,0,0,5"
-                                    Header="{StaticResource ContextMenuIsolateTree}"
-                                    IsCheckable="True"
-                                    IsChecked="{Binding PlacementTarget.Tag.IsTreeIsolated, RelativeSource={RelativeSource AncestorType=ContextMenu}, Mode=TwoWay}" />
-                                <MenuItem Command="{Binding PlacementTarget.Tag.ShowProcessDetailsCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="{StaticResource ContextMenuDetails}" />
-                                <MenuItem Command="{Binding PlacementTarget.Tag.CopyProcessPathCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="{StaticResource ContextMenuCopyPath}" />
-                                <MenuItem Command="{Binding PlacementTarget.Tag.OpenProcessDirectoryCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Header="{StaticResource ContextMenuOpenDirectory}" />
-                            </ContextMenu>
-                        </Setter.Value>
-                    </Setter>
+                <TreeView.ItemContainerStyle>
+                    <Style BasedOn="{StaticResource TreeViewItemStyle}" TargetType="TreeViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="HorizontalAlignment" Value="Stretch" />
 
-                    <!--  Auto-select item on Right-Click  -->
-                    <EventSetter Event="PreviewMouseRightButtonDown" Handler="TreeViewItemPreviewMouseRightButtonDown" />
-                </Style>
-            </TreeView.ItemContainerStyle>
+                        <!--  Bridge DataContext to Tag for ContextMenu access  -->
+                        <Setter Property="Tag" Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" />
 
-            <TreeView.Resources>
-                <HierarchicalDataTemplate DataType="{x:Type viewmodels:ProcessItemViewModel}" ItemsSource="{Binding Children}">
-                    <Border
-                        MinWidth="900"
-                        HorizontalAlignment="Stretch"
-                        Background="Transparent">
-                        <Border.Width>
-                            <MultiBinding Converter="{StaticResource IndentationWidthConverter}" ConverterParameter="21">
-                                <!--  Bind to the Window's calculated Row Width  -->
-                                <Binding ElementName="uiRoot" Path="TreeViewRowWidth" />
-                                <!--  Bind to the Item's Depth  -->
-                                <Binding Path="Depth" />
-                            </MultiBinding>
-                        </Border.Width>
+                        <Setter Property="ContextMenu">
+                            <Setter.Value>
+                                <ContextMenu Style="{StaticResource ContextMenuStyle}">
+                                    <MenuItem
+                                        Command="{Binding PlacementTarget.Tag.GracefulEndProcessCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                        Header="{StaticResource ContextMenuGracefulEnd}"
+                                        Style="{StaticResource MenuItemStyle}" />
+                                    <MenuItem
+                                        Command="{Binding PlacementTarget.Tag.GracefulEndProcessTreeCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                        Header="{StaticResource ContextMenuGracefulEndTree}"
+                                        Style="{StaticResource MenuItemStyle}" />
+                                    <MenuItem
+                                        Command="{Binding PlacementTarget.Tag.EndProcessCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                        Header="{StaticResource ContextMenuEnd}"
+                                        Style="{StaticResource MenuItemStyle}" />
+                                    <MenuItem
+                                        Margin="0,0,0,5"
+                                        Command="{Binding PlacementTarget.Tag.EndProcessTreeCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                        Header="{StaticResource ContextMenuEndTree}"
+                                        Style="{StaticResource MenuItemStyle}" />
+                                    <MenuItem
+                                        Margin="0,0,0,5"
+                                        Header="{StaticResource ContextMenuIsolateTree}"
+                                        IsCheckable="True"
+                                        IsChecked="{Binding PlacementTarget.Tag.IsTreeIsolated, RelativeSource={RelativeSource AncestorType=ContextMenu}, Mode=TwoWay}"
+                                        Style="{StaticResource MenuItemStyle}" />
+                                    <MenuItem
+                                        Command="{Binding PlacementTarget.Tag.ShowProcessDetailsCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                        Header="{StaticResource ContextMenuDetails}"
+                                        Style="{StaticResource MenuItemStyle}" />
+                                    <MenuItem
+                                        Command="{Binding PlacementTarget.Tag.CopyProcessPathCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                        Header="{StaticResource ContextMenuCopyPath}"
+                                        Style="{StaticResource MenuItemStyle}" />
+                                    <MenuItem
+                                        Command="{Binding PlacementTarget.Tag.OpenProcessDirectoryCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                        Header="{StaticResource ContextMenuOpenDirectory}"
+                                        Style="{StaticResource MenuItemStyle}" />
+                                </ContextMenu>
+                            </Setter.Value>
+                        </Setter>
 
-                        <Grid HorizontalAlignment="Stretch">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="80" SharedSizeGroup="PidColumn" />
-                                <ColumnDefinition Width="260" SharedSizeGroup="NameColumn" />
-                                <ColumnDefinition Width="80" SharedSizeGroup="CpuColumn" />
-                                <ColumnDefinition Width="80" SharedSizeGroup="MemColumn" />
-                                <ColumnDefinition Width="80" SharedSizeGroup="VmColumn" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
+                        <!--  Auto-select item on Right-Click  -->
+                        <EventSetter Event="PreviewMouseRightButtonDown" Handler="TreeViewItemPreviewMouseRightButtonDown" />
+                    </Style>
+                </TreeView.ItemContainerStyle>
 
-                            <!--  PID  -->
-                            <TextBlock
-                                Grid.Column="0"
-                                Margin="5,2"
-                                VerticalAlignment="Center"
-                                Text="{Binding PidText}" />
+                <TreeView.Resources>
+                    <HierarchicalDataTemplate DataType="{x:Type viewmodels:ProcessItemViewModel}" ItemsSource="{Binding Children}">
+                        <Border
+                            MinWidth="900"
+                            HorizontalAlignment="Stretch"
+                            Background="{Binding Background, RelativeSource={RelativeSource AncestorType=TreeViewItem}}">
+                            <Border.Width>
+                                <MultiBinding Converter="{StaticResource IndentationWidthConverter}" ConverterParameter="21">
+                                    <!--  Bind to the Window's calculated Row Width  -->
+                                    <Binding ElementName="uiRoot" Path="TreeViewRowWidth" />
+                                    <!--  Bind to the Item's Depth  -->
+                                    <Binding Path="Depth" />
+                                </MultiBinding>
+                            </Border.Width>
 
-                            <!--  Name with Icon  -->
-                            <StackPanel
-                                Grid.Column="1"
-                                Margin="5,2"
-                                VerticalAlignment="Center"
-                                Orientation="Horizontal">
-                                <Image
-                                    Width="16"
-                                    Height="16"
-                                    Margin="0,0,5,0"
-                                    RenderOptions.BitmapScalingMode="HighQuality"
-                                    Source="{Binding Icon}" />
+                            <Grid HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="80" SharedSizeGroup="PidColumn" />
+                                    <ColumnDefinition Width="260" SharedSizeGroup="NameColumn" />
+                                    <ColumnDefinition Width="80" SharedSizeGroup="CpuColumn" />
+                                    <ColumnDefinition Width="80" SharedSizeGroup="MemColumn" />
+                                    <ColumnDefinition Width="80" SharedSizeGroup="VmColumn" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!--  PID  -->
                                 <TextBlock
+                                    Grid.Column="0"
+                                    Margin="5,2"
                                     VerticalAlignment="Center"
-                                    Foreground="{Binding IsService, Converter={StaticResource ServiceColorConverter}}"
-                                    Text="{Binding Name}" />
-                            </StackPanel>
+                                    Text="{Binding PidText}" />
 
-                            <!--  CPU  -->
-                            <TextBlock
-                                Grid.Column="2"
-                                Margin="5,2"
-                                VerticalAlignment="Center"
-                                Text="{Binding CpuPercentage, Converter={StaticResource CpuPercentageConverter}}"
-                                TextAlignment="Right" />
+                                <!--  Name with Icon  -->
+                                <StackPanel
+                                    Grid.Column="1"
+                                    Margin="5,2"
+                                    VerticalAlignment="Center"
+                                    Orientation="Horizontal">
+                                    <Image
+                                        Width="16"
+                                        Height="16"
+                                        Margin="0,0,5,0"
+                                        RenderOptions.BitmapScalingMode="HighQuality"
+                                        Source="{Binding Icon}" />
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        Foreground="{Binding IsService, Converter={StaticResource ServiceColorConverter}}"
+                                        Text="{Binding Name}" />
+                                </StackPanel>
 
-                            <!--  Memory  -->
-                            <TextBlock
-                                Grid.Column="3"
-                                Margin="5,2"
-                                VerticalAlignment="Center"
-                                Text="{Binding MemoryBytes, Converter={StaticResource BytesToAutoFormatConverter}}"
-                                TextAlignment="Right" />
+                                <!--  CPU  -->
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Margin="5,2"
+                                    VerticalAlignment="Center"
+                                    Text="{Binding CpuPercentage, Converter={StaticResource CpuPercentageConverter}}"
+                                    TextAlignment="Right" />
 
-                            <!--  VM Size  -->
-                            <TextBlock
-                                Grid.Column="4"
-                                Margin="5,2"
-                                VerticalAlignment="Center"
-                                Text="{Binding VirtualMemoryBytes, Converter={StaticResource BytesToAutoFormatConverter}}"
-                                TextAlignment="Right" />
+                                <!--  Memory  -->
+                                <TextBlock
+                                    Grid.Column="3"
+                                    Margin="5,2"
+                                    VerticalAlignment="Center"
+                                    Text="{Binding MemoryBytes, Converter={StaticResource BytesToAutoFormatConverter}}"
+                                    TextAlignment="Right" />
 
-                            <!--  Parameters  -->
-                            <TextBlock
-                                Grid.Column="5"
-                                Margin="5,2"
-                                VerticalAlignment="Center"
-                                Text="{Binding Parameters}"
-                                TextTrimming="CharacterEllipsis" />
-                        </Grid>
-                    </Border>
-                </HierarchicalDataTemplate>
-            </TreeView.Resources>
-        </TreeView>
+                                <!--  VM Size  -->
+                                <TextBlock
+                                    Grid.Column="4"
+                                    Margin="5,2"
+                                    VerticalAlignment="Center"
+                                    Text="{Binding VirtualMemoryBytes, Converter={StaticResource BytesToAutoFormatConverter}}"
+                                    TextAlignment="Right" />
+
+                                <!--  Parameters  -->
+                                <TextBlock
+                                    Grid.Column="5"
+                                    Margin="5,2"
+                                    VerticalAlignment="Center"
+                                    Text="{Binding Parameters}"
+                                    TextTrimming="CharacterEllipsis" />
+                            </Grid>
+                        </Border>
+                    </HierarchicalDataTemplate>
+                </TreeView.Resources>
+            </TreeView>
+        </Border>
     </Grid>
 </Window>

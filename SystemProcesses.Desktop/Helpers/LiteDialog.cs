@@ -61,11 +61,20 @@ internal sealed class LiteDialogWindow : Window
     private static readonly Geometry GeoError = Geometry.Parse("M2 12c0-4.714 0-7.071 1.464-8.536C4.93 2 7.286 2 12 2s7.071 0 8.535 1.464C22 4.93 22 7.286 22 12s0 7.071-1.465 8.535C19.072 22 16.714 22 12 22s-7.071 0-8.536-1.465C2 19.072 2 16.714 2 12m7-3 6 6m0-6-6 6");
     private static readonly Geometry GeoQuestion = Geometry.Parse("M2 12c0-4.714 0-7.071 1.464-8.536C4.93 2 7.286 2 12 2s7.071 0 8.535 1.464C22 4.93 22 7.286 22 12s0 7.071-1.465 8.535C19.072 22 16.714 22 12 22s-7.071 0-8.536-1.465C2 19.072 2 16.714 2 12m8.125-3.125a1.875 1.875 0 1 1 2.828 1.615c-.475.281-.953.708-.953 1.26V13m1 3a1 1 0 1 0-2 0 1 1 0 1 0 2 0");
 
-    private static readonly SolidColorBrush BrushSuccess = CreateFrozenBrush("#00AA00");
-    private static readonly SolidColorBrush BrushQuestion = CreateFrozenBrush("#EF5D27");
-    private static readonly SolidColorBrush BrushInfo = CreateFrozenBrush("#2273DE");
-    private static readonly SolidColorBrush BrushWarn = CreateFrozenBrush("#E1AA15");
-    private static readonly SolidColorBrush BrushError = CreateFrozenBrush("#AF002F");
+    // Status icon brushes resolved from XAML resource dictionaries with fallback to hard-coded values.
+    // Resolved lazily at runtime to avoid static constructor timing issues with Application.Current.
+    private static SolidColorBrush ResolveSuccessBrush() => ResolveBrush("SuccessBrush", "#00AA00");
+    private static SolidColorBrush ResolveQuestionBrush() => ResolveBrush("QuestionBrush", "#EF5D27");
+    private static SolidColorBrush ResolveInfoBrush() => ResolveBrush("InfoBrush", "#2273DE");
+    private static SolidColorBrush ResolveWarnBrush() => ResolveBrush("WarningBrush", "#E1AA15");
+    private static SolidColorBrush ResolveErrorBrush() => ResolveBrush("ErrorBrush", "#AF002F");
+
+    private static SolidColorBrush ResolveBrush(string resourceName, string fallbackHex)
+    {
+        if (Application.Current?.Resources[resourceName] is SolidColorBrush brush)
+            return brush;
+        return CreateFrozenBrush(fallbackHex);
+    }
 
     private static SolidColorBrush CreateFrozenBrush(string hex)
     {
@@ -82,8 +91,6 @@ internal sealed class LiteDialogWindow : Window
         if (GeoInfo.CanFreeze) GeoInfo.Freeze();
         if (GeoWarn.CanFreeze) GeoWarn.Freeze();
         if (GeoError.CanFreeze) GeoError.Freeze();
-
-        // Brushes are already frozen in CreateFrozenBrush()
     }
 
     private readonly TextBlock txtTitle;
@@ -98,13 +105,14 @@ internal sealed class LiteDialogWindow : Window
 
     public LiteDialogWindow()
     {
+        this.Style = Application.Current.Resources["WindowStyle"] as Style;
+
         this.WindowStartupLocation = WindowStartupLocation.CenterOwner;
         this.ResizeMode = ResizeMode.NoResize;
         this.SizeToContent = SizeToContent.WidthAndHeight;
         this.ShowInTaskbar = false;
         this.Topmost = true;
         this.WindowStyle = WindowStyle.SingleBorderWindow;
-        this.Background = SystemColors.ControlBrush;
         this.MinWidth = 350; // Slightly wider for icon
         this.MaxWidth = 600;
 
@@ -157,6 +165,7 @@ internal sealed class LiteDialogWindow : Window
         // Message Text (read-only TextBox styled as TextBlock for selectability)
         txtMessage = new TextBox
         {
+            Template = Application.Current.Resources["RoundedTextBoxTemplate"] as ControlTemplate,
             TextWrapping = TextWrapping.Wrap,
             VerticalAlignment = VerticalAlignment.Center,
             IsReadOnly = true,
@@ -210,14 +219,14 @@ internal sealed class LiteDialogWindow : Window
         txtMessage.Text = request.Message;
         this.Title = request.Title;
 
-        // [Icon Logic - Same as before]
+        // [Icon Logic]
         switch (request.Image)
         {
-            case LiteDialogImage.Success: SetIcon(GeoSucess, BrushSuccess); break;
-            case LiteDialogImage.Question: SetIcon(GeoQuestion, BrushQuestion); break;
-            case LiteDialogImage.Information: SetIcon(GeoInfo, BrushInfo); break;
-            case LiteDialogImage.Warning: SetIcon(GeoWarn, BrushWarn); break;
-            case LiteDialogImage.Error: SetIcon(GeoError, BrushError); break;
+            case LiteDialogImage.Success: SetIcon(GeoSucess, ResolveSuccessBrush()); break;
+            case LiteDialogImage.Question: SetIcon(GeoQuestion, ResolveQuestionBrush()); break;
+            case LiteDialogImage.Information: SetIcon(GeoInfo, ResolveInfoBrush()); break;
+            case LiteDialogImage.Warning: SetIcon(GeoWarn, ResolveWarnBrush()); break;
+            case LiteDialogImage.Error: SetIcon(GeoError, ResolveErrorBrush()); break;
             default: iconViewbox.Visibility = Visibility.Collapsed; break;
         }
 

@@ -85,4 +85,5 @@ public partial class MainWindow : Window
             vm.ExitApplicationCommand.ExecuteAsync(null);
         }
     }
+
 }

@@ -132,10 +132,43 @@ An optional always-on-top statistics window that displays real-time system metri
 - **Positioning:** Automatically positioned at the bottom of the screen, overlaying the taskbar.
 - **Always Visible:** Remains visible above all windows, including the taskbar, using message-driven Win32 z-order enforcement.
 - **Draggable:** Click and drag to reposition the window anywhere on screen.
+- **Drive Click:** Click any drive widget to open that drive (e.g., `C:\`) directly in Windows Explorer.
 - **Close:** Press **ESC** key to close the StatsView window.
 - **Updates:** Refreshes in real-time, synchronized with the main application's refresh rate.
 
 > **Technical Note:** StatsView uses optimized Windows messaging (WmWindowPosChanging, WmActivateApp) for zero-allocation, event-driven topmost enforcement without periodic polling.
+
+```mermaid
+flowchart LR
+    subgraph StatsView["StatsView"]
+        Border["Border [Cursor=Hand]"]
+        MB["MouseBinding - LeftClick"]
+        SP["StackPanel - DriveLabel + FreeBytes"]
+    end
+
+    subgraph VM["DriveStatsViewModel"]
+        Cmd["OpenDriveCommand"]
+        Letter["DriveLetter: C"]
+    end
+
+    subgraph Explorer["Windows Explorer"]
+        Exp["explorer.exe [C:]"]
+    end
+
+    Border -->|"LeftClick"| MB
+    MB -->|"Command + CommandParameter={Binding}"| Cmd
+    Cmd -->|"Launches explorer at drive C:"| Exp
+    Cmd -.->|"Reads property"| Letter
+    SP -->|"Displays"| Cmd
+
+    classDef view fill:#4d4d4d,stroke:#00ee00,color:#00ee00
+    classDef vm fill:#3a3a3a,stroke:#00ee00,color:#00ee00
+    classDef sys fill:#0d0d0d,stroke:#00ee00,color:#00ee00
+
+    class Border,MB,SP view
+    class Cmd,Letter vm
+    class Exp sys
+```
 
 ---
 

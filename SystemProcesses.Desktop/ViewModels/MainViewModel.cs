@@ -143,6 +143,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<ProcessItemViewModel> Processes { get; } = [];
     public ObservableCollection<string> RefreshIntervals { get; }
 
+    private bool isRefreshPopupOpen;
+
+    /// <summary>
+    /// Gets/sets whether the refresh interval popup is open.
+    /// </summary>
+    public bool IsRefreshPopupOpen
+    {
+        get => isRefreshPopupOpen;
+        set => SetProperty(ref isRefreshPopupOpen, value);
+    }
+
+    [RelayCommand]
+    private void ToggleRefreshPopup() => IsRefreshPopupOpen = !IsRefreshPopupOpen;
+
     public string PauseResumeText => IsPaused ? "Resume" : "Pause";
 
     public string SelectedRefreshInterval

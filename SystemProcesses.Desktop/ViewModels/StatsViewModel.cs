@@ -1,9 +1,13 @@
+using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Windows;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+
+using Serilog;
 
 using SystemProcesses.Desktop.Helpers;
 using SystemProcesses.Desktop.Models;
@@ -279,4 +283,20 @@ public partial class DriveStatsViewModel : ObservableObject
     /// Drive label for display (e.g., "C:", "D:").
     /// </summary>
     public string DriveLabel => $"{DriveLetter}:";
+
+    /// <summary>
+    /// Opens the drive in Windows Explorer.
+    /// </summary>
+    [RelayCommand]
+    private void OpenDrive()
+    {
+        try
+        {
+            Process.Start("explorer.exe", $"{DriveLetter}:");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to open drive {DriveLetter} in Explorer", DriveLetter);
+        }
+    }
 }

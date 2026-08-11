@@ -52,6 +52,238 @@ Instead of the slow `System.Diagnostics` API, we use **P/Invoke** to call undocu
 - **Synchronization:** A `SemaphoreSlim` ensures only one refresh cycle runs at a time.
 - **Differential Updates:** The UI layer compares the new data snapshot against the existing `ObservableCollection`, adding/removing/updating only what changed.
 
+## Architecture Diagrams
+
+### Layered Architecture
+
+```mermaid
+flowchart TB
+    subgraph Presentation["Presentation Layer (WPF)"]
+        direction TB
+        MW["MainWindow.xaml"]
+        PV["Views/*.xaml"]
+        CV["Converters/*"]
+    end
+
+    subgraph ViewModel["ViewModel Layer (MVVM)"]
+        direction TB
+        MainVM["MainViewModel"]
+        ProcVM["ProcessItemViewModel"]
+        StatsVM["StatsViewModel"]
+    end
+
+    subgraph Services["Services Layer"]
+        direction TB
+        PS["ProcessService"]
+        ILS["ImageLoaderService"]
+        IC["IconCache"]
+        SP["SystemPrimitives (P/Invoke)"]
+    end
+
+    subgraph Models["Models"]
+        direction TB
+        PI["ProcessInfo"]
+        SS["SystemStats"]
+        DS["DriveStats"]
+    end
+
+    subgraph Kernel["Windows Kernel (Native APIs)"]
+        direction TB
+        NT["ntdll.dll"]
+        K32["kernel32.dll"]
+        ADV["advapi32.dll"]
+        PDH["pdh.dll"]
+    end
+
+    Presentation --> ViewModel
+    ViewModel --> Services
+    Services --> Models
+    Services --> Kernel
+    Services -.-> ILS
+    Services -.-> IC
+    SP --> NT
+    SP --> K32
+    SP --> ADV
+    SP --> PDH
+
+    classDef wpf fill:#4d4d4d,stroke:#00ee00,stroke-width:1px,color:#00ee00
+    classDef vm fill:#3a3a3a,stroke:#00ee00,stroke-width:1px,color:#00ee00
+    classDef svc fill:#2a2a2a,stroke:#00ee00,stroke-width:1px,color:#00ee00
+    classDef mdl fill:#1a1a1a,stroke:#00ee00,stroke-width:1px,color:#00ee00
+    classDef kern fill:#0d0d0d,stroke:#00ee00,stroke-width:1px,color:#00ee00
+
+    class MW,PV,CV wpf
+    class MainVM,ProcVM,StatsVM vm
+    class PS,ILS,IC,SP svc
+    class PI,SS,DS mdl
+    class NT,K32,ADV,PDH kern
+```
+
+### Process Data Pipeline
+
+```mermaid
+flowchart LR
+    subgraph K["Windows Kernel"]
+        K1["ntdll.dll: NtQuerySystemInformation"]
+    end
+
+    subgraph PS["ProcessService"]
+        PS1["UpdateProcessSnapshot()"]
+        PS2["RebuildTreeStructure()"]
+        PS3["CollectDriveStats()"]
+    end
+
+    subgraph MVM["MainViewModel"]
+        MVM1["RefreshProcessesAsync()"]
+        MVM2["SyncProcessCollection()"]
+        MVM3["UpdateStorageStats()"]
+        MVM4["UpdateTrayState()"]
+    end
+
+    subgraph WPF["WPF Data Binding"]
+        WPF1["Virtualized TreeView"]
+        WPF2["StatusBar Bindings"]
+        WPF3["StatsView Bindings"]
+    end
+
+    K -->|"Raw memory block (1-2 MB)"| PS1
+    PS1 -->|"unsafe byte* iteration"| PS1
+    PS1 -->|"Dictionary<int, ProcessInfo> (reuse)"| PS2
+    PS2 -->|"List<ProcessInfo> Roots + SystemStats"| MVM1
+    MVM1 -->|"SemaphoreSlim guard"| MVM2
+    MVM2 -->|"ObservableCollection diff"| WPF1
+    MVM1 -->|"SystemStats updated"| MVM3
+    MVM3 -->|"StorageStatsText, TrayText"| WPF2
+    MVM1 -->|"StatsUpdated event"| MVM4
+    MVM4 -->|".NET Dispatcher"| WPF3
+
+    classDef kern fill:#0d0d0d,stroke:#00ee00,color:#00ee00
+    classDef svc fill:#2a2a2a,stroke:#00ee00,color:#00ee00
+    classDef vm fill:#3a3a3a,stroke:#00ee00,color:#00ee00
+    classDef ui fill:#4d4d4d,stroke:#00ee00,color:#00ee00
+
+    class K1 kern
+    class PS1,PS2,PS3 svc
+    class MVM1,MVM2,MVM3,MVM4 vm
+    class WPF1,WPF2,WPF3 ui
+```
+
+### Threading Model
+
+```mermaid
+sequenceDiagram
+    participant UI as "UI Thread [Dispatcher]"
+    participant BG as "Background Thread [Task.Run]"
+    participant PS as ProcessService
+    participant K as "Windows Kernel"
+
+    loop Every refreshInterval
+        BG->>PS: Get process tree
+        PS->>K: NtQuerySystemInformation
+        K-->>PS: Raw memory block
+        Note over PS: unsafe pointer iteration
+        PS-->>BG: ProcessInfo Roots + SystemStats
+    end
+
+    BG-->>UI: await marshals back to Dispatcher
+    Note over UI: RefreshProcessesAsync continuation
+    UI->>UI: SyncProcessCollection - differential
+    UI->>UI: UpdateStorageStats
+    UI->>UI: UpdateTrayState
+    UI->>UI: StatsUpdated event
+    UI->>UI: INotifyPropertyChanged
+    Note over UI: WPF binding engine renders
+    UI-->>UI: TreeView.ItemsSource updated
+```
+
+### Drive Widget Click-to-Open (StatsView)
+
+```mermaid
+flowchart LR
+    subgraph XAML["StatsView.xaml"]
+        B1["Border [Cursor=Hand]"]
+        MB["MouseBinding MouseAction=LeftClick"]
+        Cmd["Command={Binding OpenDriveCommand}"]
+        CP["CommandParameter={Binding}"]
+        SP["StackPanel (DriveLabel, FreeBytes)"]
+    end
+
+    subgraph VM["DriveStatsViewModel"]
+        RVM["[RelayCommand] OpenDrive()"]
+        Prop["DriveLetter (char)"]
+    end
+
+    subgraph Native["Windows Explorer"]
+        EXP["explorer.exe 'C:'"]
+    end
+
+    B1 --> MB
+    MB --> Cmd
+    MB --> CP
+    MB --> SP
+    Cmd -->|"DataContext = DriveStatsViewModel"| RVM
+    CP --> Prop
+    RVM -->|"Launches explorer at drive C:"| EXP
+
+    classDef xaml fill:#4d4d4d,stroke:#00ee00,color:#00ee00
+    classDef vm fill:#3a3a3a,stroke:#00ee00,color:#00ee00
+    classDef native fill:#0d0d0d,stroke:#00ee00,color:#00ee00
+
+    class B1,MB,Cmd,CP,SP xaml
+    class RVM,Prop vm
+    class EXP native
+```
+
+### Refresh Cycle — Differential Update
+
+```mermaid
+flowchart TD
+    A["DispatcherTimer Tick"] --> B{"refreshLock.CurrentCount > 0"}
+    B -->|No| C["Set isRefreshPending = true\nReturn (coalesce)"]
+    B -->|Yes| D["Acquire refreshLock"]
+    D --> E["GetProcessTreeAsync()"]
+    E --> F["ApplyFilters\n(search / isolation)"]
+    F --> G["Dispatcher.InvokeAsync"]
+    G --> H["SyncProcessCollection"]
+    H --> H1["Remove stale items\n(HashSet PID diff)"]
+    H --> H2["Insert/reorder/update\n(existing ViewModel reuse)"]
+    H --> H3["Trim trailing excess"]
+    H --> I["CleanupStaleViewModels\n(post-sync, deferred)"]
+    I --> J["UpdateStorageStats + UpdateTrayState"]
+    J --> K["Fire StatsUpdated event"]
+    K --> L{"isRefreshPending"}
+    L -->|Yes| E
+    L -->|No| M["Release refreshLock"]
+
+    style A fill:#2a2a2a,stroke:#00ee00,color:#00ee00
+    style E fill:#2a2a2a,stroke:#00ee00,color:#00ee00
+    style H fill:#2a2a2a,stroke:#00ee00,color:#00ee00
+    style I fill:#2a2a2a,stroke:#00ee00,color:#00ee00
+```
+
+### Error Handling & Recovery
+
+```mermaid
+flowchart TD
+    A["Operation Start"] --> B{"Try block executes"}
+    B --> C["ProcessService collects data"]
+    C --> D{"Exception thrown?"}
+    D -->|No| E["SyncProcessCollection\n(healthy path)"]
+    D -->|Yes| F["Log.Error with context"]
+    F --> G["TelemetryService.RecordException"]
+    G --> H{"Exception is\nbuffer resize?"}
+    H -->|Yes| I["Free old buffer\nAllocate larger (+1MB)\nRetry"]
+    H -->|No| J["Return empty result\nContinue normal refresh cycle"]
+    I --> C
+    E --> K["WPF binding updates\nUI remains responsive"]
+    J --> K
+    K --> L["Timer schedules next tick\n(1s default)"]
+
+    style I fill:#2a2a2a,stroke:#00ee00,color:#00ee00
+    style J fill:#2a2a2a,stroke:#00ee00,color:#00ee00
+    style E fill:#2a2a2a,stroke:#00ee00,color:#00ee00
+```
+
 ## Requirements
 
 - **OS:** Windows 10 / 11 (x64 recommended)
@@ -143,6 +375,7 @@ This project has been significantly enhanced with:
 - **Resource Cleanup** - Finalizer for ImageLoaderService ensuring proper disposal
 - **Result&lt;T&gt; Type Safety** - Discriminated union pattern for explicit error handling in icon loading and other operations
 - **LiteDialog Enhancements** - Fixed critical deadlock risk, added multi-monitor support via native Win32 APIs, ensured thread-safe brush initialization, and implemented proper resource disposal
+- **Drive Widget Click-to-Open** - Clicking any drive widget in the StatsView overlay opens Windows Explorer at that drive root (e.g., `C:\`).
 - **Production-Ready Verification** - Complete PFPSO-ShipIt verification checklist with all systems passing
 
 See [documents/learnings.md](documents/learnings.md) for technical decisions.

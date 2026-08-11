@@ -53,8 +53,8 @@
         x:Name="RootBorder"
         Height="46"
         Padding="5,5,2,5"
-        Background="#212121"
-        BorderBrush="#222222"
+        Background="{StaticResource WidgetBrush}"
+        BorderBrush="{StaticResource WidgetBorderBrush}"
         BorderThickness="1"
         CornerRadius="5"
         MouseDown="BorderMouseDown"
@@ -63,7 +63,7 @@
             <!--  CPU  -->
             <Border
                 Background="{StaticResource IconBorder.Background}"
-                BorderBrush="#00EE00"
+                BorderBrush="{StaticResource AccentBrush}"
                 Style="{StaticResource IconBorder}">
                 <StackPanel Orientation="Vertical" Style="{StaticResource IconStack}">
                     <TextBlock Style="{StaticResource GreenTextBlock2}" Text="{StaticResource StatsViewCPU}" />
@@ -106,8 +106,15 @@
                     <DataTemplate>
                         <Border
                             Background="{StaticResource IconBorder.Background}"
-                            BorderBrush="#00EE00"
+                            BorderBrush="{StaticResource AccentBrush}"
+                            Cursor="Hand"
                             Style="{StaticResource IconBorder}">
+                            <Border.InputBindings>
+                                <MouseBinding
+                                    Command="{Binding OpenDriveCommand}"
+                                    CommandParameter="{Binding}"
+                                    MouseAction="LeftClick" />
+                            </Border.InputBindings>
                             <StackPanel Orientation="Vertical">
                                 <TextBlock Style="{StaticResource GreenTextBlock2}" Text="{Binding DriveLabel}" />
                                 <TextBlock Style="{StaticResource GreenTextBlock}" Text="{Binding FreeBytes, Converter={StaticResource BytesToAutoFormatConverter}}" />
