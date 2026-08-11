@@ -24,7 +24,7 @@
     <Color x:Key="InfoColor">#FF2273DE</Color>
     <Color x:Key="WarningColor">#FFE1AA15</Color>
     <Color x:Key="ErrorColor">#FFAF002F</Color>
-    <Color x:Key="PanelColor">#FF1E1E1E</Color>
+    <Color x:Key="PanelColor">#FF212121</Color>
     <Color x:Key="FragmentColor">#FF333333</Color>
     <Color x:Key="FragmentBorderColor">#FF444444</Color>
     <Color x:Key="WidgetColor">#FF212121</Color>
@@ -200,6 +200,80 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!--  RadioButton Styles  -->
+    <Style TargetType="RadioButton">
+        <!--  Your original property setters  -->
+        <Setter Property="Background" Value="{StaticResource PanelBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+
+        <!--  Default spacing between the bullet and the text  -->
+        <Setter Property="Padding" Value="3,2" />
+
+        <!--  The custom template that fixes the bullet styling  -->
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <BulletDecorator Background="{TemplateBinding Background}" SnapsToDevicePixels="True">
+                        <BulletDecorator.Bullet>
+                            <!--  The bullet visual: Outer circle + Inner dot  -->
+                            <Grid
+                                Width="12"
+                                Height="12"
+                                Margin="0,2,0,0">
+                                <!--  Outer circle  -->
+                                <Ellipse
+                                    x:Name="OuterCircle"
+                                    Fill="{TemplateBinding Background}"
+                                    Stroke="{TemplateBinding BorderBrush}"
+                                    StrokeThickness="1.5" />
+
+                                <!--  Inner dot (hidden by default)  -->
+                                <Ellipse
+                                    x:Name="InnerDot"
+                                    Width="6"
+                                    Height="6"
+                                    Fill="{StaticResource AccentBrush}"
+                                    Opacity="0" />
+                            </Grid>
+                        </BulletDecorator.Bullet>
+
+                        <!--  The text content  -->
+                        <ContentPresenter
+                            Margin="{TemplateBinding Padding}"
+                            Content="{TemplateBinding Content}"
+                            ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            RecognizesAccessKey="True" />
+                    </BulletDecorator>
+
+                    <!--  Control triggers  -->
+                    <ControlTemplate.Triggers>
+                        <!--  When checked: Show the inner dot and make text bold  -->
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="InnerDot" Property="Opacity" Value="1" />
+                        </Trigger>
+
+                        <!--  Optional: Change outer circle color on hover  -->
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="OuterCircle" Property="Stroke" Value="{StaticResource AccentBrush}" />
+                        </Trigger>
+
+                        <!--  Optional: Slight visual feedback when pressed  -->
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="InnerDot" Property="Width" Value="5" />
+                            <Setter TargetName="InnerDot" Property="Height" Value="5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
     <!--  Button Styles  -->
@@ -388,7 +462,7 @@
             BorderThickness="{TemplateBinding BorderThickness}"
             CornerRadius="6">
             <TextBox
-                Margin="0"
+                Margin="6,0"
                 Padding="2"
                 VerticalAlignment="Center"
                 Background="{StaticResource TransparentBrush}"

@@ -138,6 +138,21 @@ An optional always-on-top statistics window that displays real-time system metri
 
 > **Technical Note:** StatsView uses optimized Windows messaging (WmWindowPosChanging, WmActivateApp) for zero-allocation, event-driven topmost enforcement without periodic polling.
 
+### Export Snapshot
+
+Save the current process tree to a file for reporting or analysis.
+
+1. Click **Export** in the top-right toolbar (next to the refresh-rate button).
+2. In the dialog, pick a **destination path** (use **Browse…** to choose a folder and default name).
+3. Choose a **format** with the radio buttons — **CSV**, **JSON**, or **Markdown**:
+   - Switching the format radio updates only the file extension; your chosen base name and folder are kept.
+4. Choose an **Export Mode**:
+   - **Full** — exports the entire latest snapshot, regardless of any active search or isolation filter.
+   - **Visible** — exports only the processes currently shown in the tree (search and isolation applied).
+5. Click **OK** to write the file, or **Cancel** (or `ESC`) to abort.
+
+The output includes all process metadata (PID, name, CPU, working set, virtual memory, threads, handles, service flag, parent PID, path, command line, and create time). JSON preserves the parent/child hierarchy as a nested `children` tree; CSV and Markdown flatten the tree with `Depth` and `Parent PID` columns.
+
 ```mermaid
 flowchart LR
     subgraph StatsView["StatsView"]

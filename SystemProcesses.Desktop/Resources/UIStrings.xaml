@@ -28,6 +28,8 @@
     <sys:String x:Key="TooltipEndTree">Forcefully stops the process tree</sys:String>
     <sys:String x:Key="TooltipSearchBox">Filter the process by Process name or Id</sys:String>
     <sys:String x:Key="TooltipRefreshRate">Refresh Rate</sys:String>
+    <sys:String x:Key="ButtonExport">💾</sys:String>
+    <sys:String x:Key="TooltipExport">Export the current process snapshot to CSV, JSON, or Markdown</sys:String>
 
     <!--  Status Bar Labels  -->
     <sys:String x:Key="LabelProcesses">Processes:</sys:String>

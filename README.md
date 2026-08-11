@@ -27,6 +27,7 @@
   - **Strings:** `PidText` and other static strings are cached to avoid boxing.
 - **Always-On-Top Stats Window:** Optional StatsView overlay displays real-time system statistics (CPU, RAM, VM, Disk, Drive free space) above the taskbar using message-driven Win32 enforcement.
 - **Modern Stack:** Built on .NET 10, utilizing `LibraryImport`, `Span<T>`, and the MVVM Toolkit.
+- **Snapshot Export:** Export the current process tree to **CSV**, **JSON** (nested hierarchy), or **Markdown** with a LiteDialog-style picker. Choose **Full** (entire snapshot) or **Visible** (only the processes currently shown after search/isolation).
 
 ## Architecture & Optimizations
 
@@ -45,6 +46,17 @@ Instead of the slow `System.Diagnostics` API, we use **P/Invoke** to call undocu
 - **Manual Buffering:** Allocates unmanaged memory (`Marshal.AllocHGlobal`) for kernel data, resizing only when necessary.
 - **Pointer Arithmetic:** Iterates over the raw byte stream using `unsafe` pointers to extract data without marshalling full structures.
 - **Struct Reuse:** The `activeProcesses` dictionary updates existing instances. New allocations only occur when a _new_ process starts.
+
+### 4. Snapshot Export (`Services/Export/`, `Helpers/ExportDialog.cs`)
+
+Export the running process tree to disk without third-party libraries or reflection:
+
+- **Formats:** CSV (flat, RFC-4180 quoted), JSON (hand-written nested `children` tree), Markdown table. All meta fields are included (PID, CPU, memory, threads, handles, service flag, parent PID, path, command line, create time).
+- **Mode:**
+  - **Full** — the entire latest snapshot (ignores search/isolation filters). Captured as an immutable deep clone under the refresh lock, so the async render cannot race a live refresh.
+  - **Visible** — only the processes currently displayed (search + isolation applied).
+- **Extension sync:** Selecting a format radio rewrites only the output file extension; the base file name and directory are preserved.
+- **Performance:** Rendering runs off the UI thread (`Task.Run`) and writes via `File.WriteAllTextAsync`; the UI never blocks on I/O. Writers reuse `StringBuilderPool` and emit directly, keeping allocations minimal.
 
 ### 3. Thread-Safe UI (`MainViewModel.cs`)
 

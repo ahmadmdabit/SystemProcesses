@@ -28,9 +28,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IProcessService processService;
     private readonly ILiteDialogService liteDialogService;
     private readonly IImageLoaderService imageLoaderService;
+    private readonly IExportDialogService exportDialogService;
+    private readonly IProcessExportService exportService;
     private readonly RuntimeUnitExitor processExitor;
     private readonly DispatcherTimer refreshTimer;
     private readonly TelemetryService telemetryService;
+
+    // Immutable deep copy of the most recent FULL (unfiltered) process tree, retained so the
+    // export command always has a consistent, thread-safe point-in-time snapshot to write.
+    // Rebuilt every refresh cycle inside the UI-sync block (guarded by refreshLock).
+    private List<ProcessInfo>? fullSnapshot = [];
 
     // Event for notifying StatsView of system statistics updates
     public event EventHandler? StatsUpdated;
@@ -183,22 +190,25 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public MainViewModel() : this(new ProcessService(), new LiteDialogService(), new ImageLoaderService())
+    public MainViewModel() : this(new ProcessService(), new LiteDialogService(), new ImageLoaderService(), new ExportDialogService(), new ProcessExportService())
     {
     }
 
-    public MainViewModel(IProcessService processService, ILiteDialogService liteDialogService, IImageLoaderService imageLoaderService)
+    public MainViewModel(IProcessService processService, ILiteDialogService liteDialogService, IImageLoaderService imageLoaderService,
+        IExportDialogService exportDialogService, IProcessExportService exportService)
     {
         this.processService = processService;
         this.liteDialogService = liteDialogService;
         this.imageLoaderService = imageLoaderService;
+        this.exportDialogService = exportDialogService;
+        this.exportService = exportService;
         this.processExitor = new RuntimeUnitExitor(liteDialogService, viewModelCache);
 
         // Initialize telemetry service (disabled by default, can be enabled via config)
         string diagnosticDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "SystemProcesses", "Diagnostics");
-        this.telemetryService = new TelemetryService(diagnosticDir, isEnabled: false);
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "SystemProcesses", "Diagnostics");
+                this.telemetryService = new TelemetryService(diagnosticDir, isEnabled: false);
 
         InitializeCpuIconsCacheAsync().GetAwaiter().GetResult();
 
@@ -274,16 +284,22 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 var filteredRoots = ApplyFilters(rootInfos);
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
-                {
-                    SyncProcessCollection(Processes, filteredRoots);
-                    if (string.IsNullOrWhiteSpace(SearchText) && !IsTreeIsolated)
-                    {
-                        CleanupStaleViewModels(rootInfos);
-                    }
-                    UpdateStatistics(stats);
-                    UpdateTrayState(stats);
-                    StatsUpdated?.Invoke(this, EventArgs.Empty);
-                });
+                                {
+                                    SyncProcessCollection(Processes, filteredRoots);
+                                    if (string.IsNullOrWhiteSpace(SearchText) && !IsTreeIsolated)
+                                    {
+                                        CleanupStaleViewModels(rootInfos);
+                                    }
+                                    UpdateStatistics(stats);
+                                    UpdateTrayState(stats);
+
+                                    // Retain an immutable full-tree snapshot for export. Cloned here, on the UI thread,
+                                    // while the refresh cycle holds refreshLock, so the next cycle cannot mutate the
+                                    // source ProcessInfo objects mid-clone (ProcessService reuses and mutates them).
+                                    fullSnapshot = ProcessTreeSnapshot.DeepClone(rootInfos);
+
+                                    StatsUpdated?.Invoke(this, EventArgs.Empty);
+                                });
 
                 // Record refresh cycle end for telemetry
                 telemetryService.RecordRefreshCycleEnd();
@@ -915,6 +931,75 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 image: LiteDialogImage.Error
             ));
         }
+    }
+
+    /// <summary>
+    /// Exports the current full process snapshot to a user-chosen path in a user-chosen format
+    /// (CSV, JSON, or Markdown).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Shows a LiteDialog-style form (path + format radio buttons), then renders the most recent
+    /// immutable full-tree snapshot off the UI thread and writes it asynchronously.
+    /// </para>
+    /// <para>
+    /// The snapshot is the last retained deep copy of the FULL (unfiltered) process tree, so the
+    /// export reflects every running process regardless of the current search/isolation filter.
+    /// </para>
+    /// </remarks>
+    [RelayCommand]
+    private async Task ExportProcesses()
+    {
+        var settings = await exportDialogService.ShowAsync();
+        if (settings == null)
+        {
+            return; // Cancelled.
+        }
+
+        List<ProcessInfo> snapshot = settings.Value.Mode == ExportMode.Visible
+            ? ProcessTreeSnapshot.DeepClone(ProcessTreeProjection.FlattenVisible(Processes)) // visible = currently displayed (search/isolation applied); clone on UI thread so the pool-thread render can't race a live refresh
+            : (fullSnapshot ?? []);                                     // full = last fresh snapshot
+        if (snapshot.Count == 0)
+        {
+            await liteDialogService.ShowAsync(new LiteDialogRequest(
+                title: "Export",
+                message: "No process snapshot is available to export yet.",
+                buttons: LiteDialogButton.OK,
+                image: LiteDialogImage.Information
+            ));
+            return;
+        }
+
+        var result = await exportService.ExportAsync(snapshot, settings.Value.FilePath, settings.Value.Format);
+        if (result.IsSuccess)
+        {
+            await liteDialogService.ShowAsync(new LiteDialogRequest(
+                title: "Export Complete",
+                message: $"Exported {snapshot.Count} processes to:\n{settings.Value.FilePath}",
+                buttons: LiteDialogButton.OK,
+                image: LiteDialogImage.Success
+            ));
+        }
+        else
+        {
+            result.Match(
+                onSuccess: () => { },
+                onFailure: (error, context) => Log.Error(error, "{Context}: {Message}", context, error.Message));
+
+            await liteDialogService.ShowAsync(new LiteDialogRequest(
+                title: "Export Failed",
+                message: GetExportFailureMessage(result),
+                buttons: LiteDialogButton.OK,
+                image: LiteDialogImage.Error
+            ));
+        }
+    }
+
+    private static string GetExportFailureMessage(Result result)
+    {
+        return result.Match(
+            onSuccess: () => "Export failed.",
+            onFailure: (error, context) => $"{context}\n{error.Message}");
     }
 
     /// <summary>
